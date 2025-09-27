@@ -1,4 +1,4 @@
-``` import logging
+import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler, CallbackQueryHandler
 
@@ -713,4 +713,4 @@ def main():
     application.run_polling()
 
 if __name__ == '__main__':
-    main() ```
+    main()
