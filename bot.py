@@ -191,10 +191,12 @@ async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if count < 0:
             raise ValueError
         context.user_data['rs_count'] = count
-        await update.message.reply_text("Количество стоек:")
+        await update.message.reply_text("Количество стоек (постов):")
         return POSTS
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text(
+            "Пожалуйста, введите корректное число (количество Р/С):"
+        )
         return RS_COUNT
 
 async def get_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
