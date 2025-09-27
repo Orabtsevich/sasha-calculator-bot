@@ -32,9 +32,23 @@ async def get_width(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WIDTH
 
 def main():
-    TOKEN = os.environ.get("BOT_TOKEN")
-    application = Application.builder().token(TOKEN).build()
+  TOKEN = os.environ.get("BOT_TOKEN")
+    print(f"🚀 BOT_TOKEN (length={len(TOKEN)}): '{TOKEN}'")  # ← ДЕБАГ: покажет реальное значение
     
+    if not TOKEN:
+        print("❌ Переменная BOT_TOKEN пустая!")
+        return
+    
+    if len(TOKEN) < 40:
+        print("⚠️ Токен слишком короткий — возможно, неполный или содержит пробелы")
+        return
+
+    try:
+        application = Application.builder().token(TOKEN).build()
+    except Exception as e:
+        print(f"❌ Ошибка при создании бота: {e}")
+        return
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -43,7 +57,7 @@ def main():
         },
         fallbacks=[]
     )
-    
+
     application.add_handler(conv_handler)
     application.run_polling()
 
