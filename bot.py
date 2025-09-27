@@ -1,19 +1,4 @@
 import os
-import os
-
-# НЕ импортируем dotenv
-TOKEN = (
-    os.getenv("BOT_TOKEN")
-    or os.getenv("TELEGRAM_TOKEN")
-    or os.getenv("TOKEN")
-)
-if TOKEN:
-    TOKEN = TOKEN.strip().strip('"').strip("'")
-
-print("BOT_TOKEN is set:", bool(TOKEN), "length:", len(TOKEN) if TOKEN else 0)
-if not TOKEN:
-    raise RuntimeError("BOT_TOKEN is not set. Define env var in platform UI")
-
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
@@ -645,7 +630,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    TOKEN = os.environ.get("BOT_TOKEN")
+    TOKEN = "8258670576:AAEeT3bQfOQ1Euqdbw3jVhEXVETmyQ43iXs"
     print(f"🚀 BOT_TOKEN (length={len(TOKEN) if TOKEN else 0}): '{TOKEN}'")
 
     if not TOKEN:
