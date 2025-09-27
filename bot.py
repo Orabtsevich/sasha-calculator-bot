@@ -32,13 +32,13 @@ async def get_width(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WIDTH
 
 def main():
-  TOKEN = os.environ.get("BOT_TOKEN")
-    print(f"🚀 BOT_TOKEN (length={len(TOKEN)}): '{TOKEN}'")  # ← ДЕБАГ: покажет реальное значение
-    
+    TOKEN = os.environ.get("BOT_TOKEN")
+    print(f"🚀 BOT_TOKEN (length={len(TOKEN)}): '{TOKEN}'")  # ДЕБАГ: покажет реальное значение
+
     if not TOKEN:
         print("❌ Переменная BOT_TOKEN пустая!")
         return
-    
+
     if len(TOKEN) < 40:
         print("⚠️ Токен слишком короткий — возможно, неполный или содержит пробелы")
         return
@@ -49,17 +49,19 @@ def main():
         print(f"❌ Ошибка при создании бота: {e}")
         return
 
+    # Здесь добавляйте ваши ConversationHandler и другие обработчики
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
             ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
             WIDTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_width)],
+            HEIGHT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_height)],
+            # ... добавьте остальные состояния по аналогии ...
         },
         fallbacks=[]
     )
 
     application.add_handler(conv_handler)
     application.run_polling()
-
 if __name__ == '__main__':
     main()
