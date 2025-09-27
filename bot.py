@@ -136,7 +136,11 @@ async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "Далее":
-        await update.message.reply_text("Количество Р/С:", reply_markup=ReplyKeyboardRemove())
+        # Удаляем клавиатуру и просим ввести количество Р/С
+        await update.message.reply_text(
+            "Количество Р/С (рольставней):", 
+            reply_markup=ReplyKeyboardRemove()
+        )
         return RS_COUNT
     
     element_map = {
@@ -148,18 +152,26 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     
     if text in element_map:
-        context.user_data['elements'].append(element_map[text])
-        # Показываем клавиатуру снова после добавления элемента
-        keyboard = [
-            ["Крыша", "Правая стена", "Левая стена"],
-            ["Задняя стенка", "Дно", "Далее"]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
-        await update.message.reply_text(
-            f"Добавлено: {text}\nВыберите ещё элементы или нажмите 'Далее':",
-            reply_markup=reply_markup
-        )
+        if element_map[text] not in context.user_data['elements']:
+            context.user_data['elements'].append(element_map[text])
+            message = f"Добавлено: {text}"
+        else:
+            message = f"Элемент '{text}' уже добавлен"
     else:
+        message = "Выберите элемент из списка."
+    
+    # Показываем клавиатуру снова после каждого действия
+    keyboard = [
+        ["Крыша", "Правая стена", "Левая стена"],
+        ["Задняя стенка", "Дно", "Далее"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+    await update.message.reply_text(
+        f"{message}\nВыберите элементы шкафа или нажмите 'Далее' для продолжения:",
+        reply_markup=reply_markup
+    )
+    
+    return ELEMENTS
         # Если введён неверный элемент, показываем клавиатуру снова
         keyboard = [
             ["Крыша", "Правая стена", "Левая стена"],
