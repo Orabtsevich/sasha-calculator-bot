@@ -1,4 +1,8 @@
 import os
+token = os.environ.get("BOT_TOKEN")
+print("BOT_TOKEN is set:", token is not None, "length:", len(token) if token else 0)
+if not token:
+    raise RuntimeError("BOT_TOKEN is not set. Define env var or .env")
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
