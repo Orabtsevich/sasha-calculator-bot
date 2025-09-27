@@ -84,7 +84,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['address'] = update.message.text
-    await update.message.reply_text("Введите ширину шкафа (мм):")
+    await update.message.reply_text("Введите ширину шкафа в миллиметрах (например: 2500):")
     return WIDTH
 
 async def get_width(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -93,10 +93,10 @@ async def get_width(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if width < 0:
             raise ValueError
         context.user_data['width'] = width
-        await update.message.reply_text("Введите высоту шкафа (мм):")
+        await update.message.reply_text("Введите высоту шкафа в миллиметрах (например: 2800):")
         return HEIGHT
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (ширина в мм):")
+        await update.message.reply_text("Пожалуйста, введите корректное число (ширина в мм, только цифры):")
         return WIDTH
 
 async def get_height(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -105,10 +105,10 @@ async def get_height(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if height < 0:
             raise ValueError
         context.user_data['height'] = height
-        await update.message.reply_text("Введите глубину шкафа (мм):")
+        await update.message.reply_text("Введите глубину шкафа в миллиметрах (например: 800):")
         return DEPTH
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (высота в мм):")
+        await update.message.reply_text("Пожалуйста, введите корректное число (высота в мм, только цифры):")
         return HEIGHT
 
 async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,13 +124,18 @@ async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
         await update.message.reply_text(
-            "Выберите элементы шкафа (нажимайте по одному):",
+            "Выберите элементы шкафа (нажимайте по одному):\n"
+            "• Крыша - верхняя часть\n"
+            "• Правая/Левая стена - боковые стенки\n"
+            "• Задняя стенка - задняя часть\n"
+            "• Дно - нижняя часть\n\n"
+            "Когда выберете все нужные элементы, нажмите 'Далее':",
             reply_markup=reply_markup
         )
         context.user_data['elements'] = []
         return ELEMENTS
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (глубина в мм):")
+        await update.message.reply_text("Пожалуйста, введите корректное число (глубина в мм, только цифры):")
         return DEPTH
 
 async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,7 +143,7 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "Далее":
         # Удаляем клавиатуру и просим ввести количество Р/С
         await update.message.reply_text(
-            "Количество Р/С (рольставней):", 
+            "🔢 Введите количество Р/С (рольставней):", 
             reply_markup=ReplyKeyboardRemove()
         )
         return RS_COUNT
@@ -154,11 +159,11 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text in element_map:
         if element_map[text] not in context.user_data['elements']:
             context.user_data['elements'].append(element_map[text])
-            message = f"Добавлено: {text}"
+            message = f"✅ Добавлено: {text}"
         else:
-            message = f"Элемент '{text}' уже добавлен"
+            message = f"ℹ️ Элемент '{text}' уже добавлен"
     else:
-        message = "Выберите элемент из списка."
+        message = "❌ Выберите элемент из списка ниже."
     
     # Показываем клавиатуру снова после каждого действия
     keyboard = [
@@ -167,21 +172,9 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
     await update.message.reply_text(
-        f"{message}\nВыберите элементы шкафа или нажмите 'Далее' для продолжения:",
+        f"{message}\n\nВыберите дополнительные элементы шкафа или нажмите 'Далее' для продолжения:",
         reply_markup=reply_markup
     )
-    
-    return ELEMENTS
-        # Если введён неверный элемент, показываем клавиатуру снова
-        keyboard = [
-            ["Крыша", "Правая стена", "Левая стена"],
-            ["Задняя стенка", "Дно", "Далее"]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
-        await update.message.reply_text(
-            "Выберите элемент из списка.",
-            reply_markup=reply_markup
-        )
     
     return ELEMENTS
 
@@ -191,11 +184,11 @@ async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if count < 0:
             raise ValueError
         context.user_data['rs_count'] = count
-        await update.message.reply_text("Количество стоек (постов):")
+        await update.message.reply_text("🔢 Введите количество стоек (постов):")
         return POSTS
     except ValueError:
         await update.message.reply_text(
-            "Пожалуйста, введите корректное число (количество Р/С):"
+            "❌ Пожалуйста, введите корректное число (только цифры):"
         )
         return RS_COUNT
 
@@ -205,10 +198,10 @@ async def get_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if count < 0:
             raise ValueError
         context.user_data['posts'] = count
-        await update.message.reply_text("Количество полок:")
+        await update.message.reply_text("🔢 Введите количество полок:")
         return SHELVES
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
         return POSTS
 
 async def get_shelves(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -228,10 +221,10 @@ async def get_shelves(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return SHELF_SIZES_CHOICE
         else:
             context.user_data['custom_shelf_sizes'] = False
-            await update.message.reply_text("Количество штанг:")
+            await update.message.reply_text("🔢 Введите количество штанг:")
             return ROD
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
         return SHELVES
 
 async def shelf_sizes_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -240,11 +233,11 @@ async def shelf_sizes_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data['custom_shelf_sizes'] = True
         context.user_data['shelf_widths'] = []
         context.user_data['current_shelf'] = 1
-        await update.message.reply_text(f"Введите ширину полки 1 (мм):")
+        await update.message.reply_text(f"🔢 Введите ширину полки 1 в миллиметрах:")
         return CUSTOM_SHELF_SIZES
     else:
         context.user_data['custom_shelf_sizes'] = False
-        await update.message.reply_text("Количество штанг:")
+        await update.message.reply_text("🔢 Введите количество штанг:")
         return ROD
 
 async def custom_shelf_sizes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -259,13 +252,13 @@ async def custom_shelf_sizes(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         if current < total:
             context.user_data['current_shelf'] += 1
-            await update.message.reply_text(f"Введите ширину полки {current + 1} (мм):")
+            await update.message.reply_text(f"🔢 Введите ширину полки {current + 1} в миллиметрах:")
             return CUSTOM_SHELF_SIZES
         else:
-            await update.message.reply_text("Количество штанг:")
+            await update.message.reply_text("🔢 Введите количество штанг:")
             return ROD
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (ширина в мм):")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
         return CUSTOM_SHELF_SIZES
 
 async def get_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -274,10 +267,10 @@ async def get_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if count < 0:
             raise ValueError
         context.user_data['rod'] = count
-        await update.message.reply_text("Количество фальш-панелей:")
+        await update.message.reply_text("🔢 Введите количество фальш-панелей:")
         return FALSE_PANEL
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
         return ROD
 
 async def get_false_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -286,10 +279,10 @@ async def get_false_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if count < 0:
             raise ValueError
         context.user_data['false_panel'] = count
-        await update.message.reply_text("Резка металл, ламелей (шт):")
+        await update.message.reply_text("🔢 Введите количество резки металл/ламелей (шт):")
         return METAL_CUTTING
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
         return FALSE_PANEL
 
 async def get_metal_cutting(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -304,7 +297,7 @@ async def get_metal_cutting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Выберите тип рольставней:", reply_markup=reply_markup)
         return RS_TYPE
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
         return METAL_CUTTING
 
 async def get_rs_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -339,7 +332,7 @@ async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_sgr_tiers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.lower() in ['да', 'yes', 'y']:
         context.user_data['sgr_tiers'] = True
-        await update.message.reply_text("Количество ярусов:")
+        await update.message.reply_text("🔢 Введите количество ярусов:")
         return SGR_ADJUSTMENT
     else:
         context.user_data['sgr_tiers'] = False
@@ -356,13 +349,13 @@ async def get_sgr_adjustment(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("Установка отбойников? (да/нет):")
         return BUMPER_INSTALLATION
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите число:")
+        await update.message.reply_text("❌ Пожалуйста, введите число (только цифры):")
         return SGR_ADJUSTMENT
 
 async def get_bumper_installation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.lower() in ['да', 'yes', 'y']:
         context.user_data['bumper_installation'] = True
-        await update.message.reply_text("Количество комплектов отбойников:")
+        await update.message.reply_text("🔢 Введите количество комплектов отбойников:")
         return BUMPER_TRANSFER
     else:
         context.user_data['bumper_installation'] = False
@@ -375,12 +368,12 @@ async def get_bumper_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE
             count = int(update.message.text)
             context.user_data['bumper_installation_count'] = count
         except ValueError:
-            await update.message.reply_text("Пожалуйста, введите число:")
+            await update.message.reply_text("❌ Пожалуйста, введите число (только цифры):")
             return BUMPER_TRANSFER
     
     if update.message.text.lower() in ['да', 'yes', 'y']:
         context.user_data['bumper_transfer'] = True
-        await update.message.reply_text("Количество комплектов переноса:")
+        await update.message.reply_text("🔢 Введите количество комплектов переноса:")
         return SECOND_INSTALLER
     else:
         context.user_data['bumper_transfer'] = False
@@ -393,7 +386,7 @@ async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYP
             count = int(update.message.text)
             context.user_data['bumper_transfer_count'] = count
         except ValueError:
-            await update.message.reply_text("Пожалуйста, введите число:")
+            await update.message.reply_text("❌ Пожалуйста, введите число (только цифры):")
             return SECOND_INSTALLER
     
     if update.message.text.lower() in ['да', 'yes', 'y']:
@@ -412,7 +405,7 @@ async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data['height_over_2500'] = False
         context.user_data['height_over_3000'] = False
     
-    await update.message.reply_text("Расстояние от КАД (км):")
+    await update.message.reply_text("🚗 Введите расстояние от КАД в километрах:")
     return DISTANCE_KAD
 
 async def get_distance_kad(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -427,7 +420,7 @@ async def get_distance_kad(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Выберите материал для стенок:", reply_markup=reply_markup)
         return WALL_MATERIAL
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (расстояние в км):")
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (расстояние в км):")
         return DISTANCE_KAD
 
 async def get_wall_material(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -485,9 +478,9 @@ async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if text in OPTIONS_LIST:
         context.user_data['selected_options'].append(text)
-        await update.message.reply_text(f"Добавлено: {text}")
+        await update.message.reply_text(f"✅ Добавлено: {text}")
     else:
-        await update.message.reply_text("Выберите опцию из списка.")
+        await update.message.reply_text("❌ Выберите опцию из списка.")
     
     return OPTIONS
 
@@ -651,7 +644,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    TOKEN = "8258670576:AAEeT3bQfOQ1Euqdbw3jVhEXVETmyQ43iXs"
+    TOKEN = "8131813785:AAEn4UkKQ2Ahfzoz53YD-PRMmbTRZjSB3hE"
     print(f"🚀 BOT_TOKEN (length={len(TOKEN) if TOKEN else 0}): '{TOKEN}'")
 
     if not TOKEN:
