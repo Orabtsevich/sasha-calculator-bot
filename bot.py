@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
     RS_TYPE, SHELF_TYPE, SGR_TIERS, SGR_ADJUSTMENT, BUMPER_INSTALLATION,
     BUMPER_TRANSFER, SECOND_INSTALLER, DISTANCE_KAD, WALL_MATERIAL,
     ROOF_MATERIAL, RS_PROFILE, FLOOR_COVERING, COLOR, SHELF_MATERIAL,
-    OPTIONS
-) = range(28)
+    OPTIONS, RESTART
+) = range(29)
 
 # Прайс-лист
 PRICE_LIST = {
@@ -122,7 +122,7 @@ async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ["Крыша", "Правая стена", "Левая стена"],
             ["Задняя стенка", "Дно", "Далее"]
         ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
         await update.message.reply_text(
             "Выберите элементы шкафа (нажимайте по одному):",
             reply_markup=reply_markup
@@ -149,9 +149,27 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if text in element_map:
         context.user_data['elements'].append(element_map[text])
-        await update.message.reply_text(f"Добавлено: {text}")
+        # Показываем клавиатуру снова после добавления элемента
+        keyboard = [
+            ["Крыша", "Правая стена", "Левая стена"],
+            ["Задняя стенка", "Дно", "Далее"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+        await update.message.reply_text(
+            f"Добавлено: {text}\nВыберите ещё элементы или нажмите 'Далее':",
+            reply_markup=reply_markup
+        )
     else:
-        await update.message.reply_text("Выберите элемент из списка.")
+        # Если введён неверный элемент, показываем клавиатуру снова
+        keyboard = [
+            ["Крыша", "Правая стена", "Левая стена"],
+            ["Задняя стенка", "Дно", "Далее"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+        await update.message.reply_text(
+            "Выберите элемент из списка.",
+            reply_markup=reply_markup
+        )
     
     return ELEMENTS
 
@@ -300,6 +318,7 @@ async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Установка ярусов? (да/нет):")
         return SGR_TIERS
     else:
+        # For non-SGR or no shelves, go directly to bumper installation
         await update.message.reply_text("Установка отбойников? (да/нет):")
         return BUMPER_INSTALLATION
 
@@ -310,38 +329,23 @@ async def get_sgr_tiers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SGR_ADJUSTMENT
     else:
         context.user_data['sgr_tiers'] = False
-        await update.message.reply_text("Подгонка по ширине? (да/нет):")
-        return SGR_ADJUSTMENT
+        # Go to bumper installation after SGR tiers decision
+        await update.message.reply_text("Установка отбойников? (да/нет):")
+        return BUMPER_INSTALLATION
 
 async def get_sgr_adjustment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('sgr_tiers'):
-        try:
-            count = int(update.message.text)
-            context.user_data['sgr_tiers_count'] = count
-            await update.message.reply_text("Подгонка по ширине? (да/нет):")
-            return BUMPER_INSTALLATION
-        except ValueError:
-            await update.message.reply_text("Пожалуйста, введите число:")
-            return SGR_ADJUSTMENT
-    else:
-        if update.message.text.lower() in ['да', 'yes', 'y']:
-            context.user_data['sgr_adjustment'] = True
-            await update.message.reply_text("Количество комплектов подгонки:")
-            return BUMPER_INSTALLATION
-        else:
-            context.user_data['sgr_adjustment'] = False
-            await update.message.reply_text("Установка отбойников? (да/нет):")
-            return BUMPER_INSTALLATION
+    # This state is now only used for getting SGR tiers count
+    try:
+        count = int(update.message.text)
+        context.user_data['sgr_tiers_count'] = count
+        # After getting tiers count, go to bumper installation
+        await update.message.reply_text("Установка отбойников? (да/нет):")
+        return BUMPER_INSTALLATION
+    except ValueError:
+        await update.message.reply_text("Пожалуйста, введите число:")
+        return SGR_ADJUSTMENT
 
 async def get_bumper_installation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('sgr_adjustment') and not context.user_data.get('sgr_tiers'):
-        try:
-            count = int(update.message.text)
-            context.user_data['sgr_adjustment_count'] = count
-        except ValueError:
-            await update.message.reply_text("Пожалуйста, введите число:")
-            return BUMPER_INSTALLATION
-    
     if update.message.text.lower() in ['да', 'yes', 'y']:
         context.user_data['bumper_installation'] = True
         await update.message.reply_text("Количество комплектов отбойников:")
@@ -473,6 +477,14 @@ async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     return OPTIONS
 
+async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text == "Начать новый расчёт":
+        return await start(update, context)
+    else:
+        # Если пользователь ввёл что-то другое, просто игнорируем
+        await update.message.reply_text("Пожалуйста, используйте кнопку для нового расчёта.")
+        return RESTART
+
 async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
     results = []
@@ -512,7 +524,7 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
         results.append(f"Дно OSB: {floor_cost:.0f} ₽")
         total += floor_cost
         
-        if data['floor_covering'] in ["лист оцинк. металла", "лист алюминия (квинтет)"]:
+        if data.get('floor_covering') in ["лист оцинк. металла", "лист алюминия (квинтет)"]:
             covering_cost = floor_length * PRICE_LIST['На дно квинтет (цинк). м/п']
             results.append(f"На дно квинтет: {covering_cost:.0f} ₽")
             total += covering_cost
@@ -557,11 +569,6 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tier_cost = (width / 1000) * data.get('sgr_tiers_count', 0) * PRICE_LIST['Установка ярусов. м/п']
             results.append(f"Установка ярусов СГР: {tier_cost:.0f} ₽")
             total += tier_cost
-        
-        if data.get('sgr_adjustment'):
-            adj_cost = data.get('sgr_adjustment_count', 0) * PRICE_LIST['Подгонка по ширине на месте. Комплек']
-            results.append(f"Подгонка по ширине СГР: {adj_cost} ₽")
-            total += adj_cost
     
     selected_opts = data.get('selected_options', [])
     opt_counts = {
@@ -619,11 +626,11 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result_text = "📋 Результаты расчёта:\n\n" + "\n".join(results) + f"\n\n💰 ИТОГО: {total:.0f} ₽"
     await update.message.reply_text(result_text, reply_markup=ReplyKeyboardRemove())
     
-    keyboard = [["/start"]]
+    keyboard = [["Начать новый расчёт"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
     await update.message.reply_text("Хотите сделать новый расчёт?", reply_markup=reply_markup)
     
-    return ConversationHandler.END
+    return RESTART
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Расчёт отменён.", reply_markup=ReplyKeyboardRemove())
@@ -674,6 +681,7 @@ def main():
             COLOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_color)],
             SHELF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_material)],
             OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_options)],
+            RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, restart_calculation)],
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
