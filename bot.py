@@ -1,6 +1,7 @@
+import os
 import logging
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler, CallbackQueryHandler
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
 
 # Настройка логирования
 logging.basicConfig(
@@ -11,39 +12,15 @@ logger = logging.getLogger(__name__)
 
 # Состояния диалога
 (
-    ADDRESS,
-    WIDTH,
-    HEIGHT,
-    DEPTH,
-    ELEMENTS,
-    RS_COUNT,
-    POSTS,
-    SHELVES,
-    ROD,
-    FALSE_PANEL,
-    METAL_CUTTING,
-    SHELF_SIZES_CHOICE,
-    CUSTOM_SHELF_SIZES,
-    RS_TYPE,
-    SHELF_TYPE,
-    SGR_TIERS,
-    SGR_ADJUSTMENT,
-    BUMPER_INSTALLATION,
-    BUMPER_TRANSFER,
-    SECOND_INSTALLER,
-    HEIGHT_CONDITION,
-    DISTANCE_KAD,
-    WALL_MATERIAL,
-    ROOF_MATERIAL,
-    RS_PROFILE,
-    FLOOR_COVERING,
-    COLOR,
-    SHELF_MATERIAL,
-    OPTIONS,
-    CALCULATE
-) = range(30)
+    ADDRESS, WIDTH, HEIGHT, DEPTH, ELEMENTS, RS_COUNT, POSTS, SHELVES,
+    SHELF_SIZES_CHOICE, CUSTOM_SHELF_SIZES, ROD, FALSE_PANEL, METAL_CUTTING,
+    RS_TYPE, SHELF_TYPE, SGR_TIERS, SGR_ADJUSTMENT, BUMPER_INSTALLATION,
+    BUMPER_TRANSFER, SECOND_INSTALLER, DISTANCE_KAD, WALL_MATERIAL,
+    ROOF_MATERIAL, RS_PROFILE, FLOOR_COVERING, COLOR, SHELF_MATERIAL,
+    OPTIONS
+) = range(28)
 
-# Прайс-лист (как в вашем калькуляторе)
+# Прайс-лист
 PRICE_LIST = {
     'Выход': 2000,
     'Доставка 1 заказ': 2000,
@@ -80,7 +57,6 @@ PRICE_LIST = {
     'Видеоотзыв': 750
 }
 
-# Варианты материалов
 MATERIALS = {
     'wall': ["Сэндвич-панель 40 мм", "Профлист С8А, 0,45 мм"],
     'roof': ["Сэндвич-панель 40 мм", "Профлист С8А, 0,45 мм", "Плита OSB + мягкая кровля"],
@@ -90,7 +66,6 @@ MATERIALS = {
     'shelf': ["Металл", "Плита OSB 22 мм", "СГР", "Навесной"]
 }
 
-# Опции
 OPTIONS_LIST = [
     "Вент. решетка",
     "LED светильник",
@@ -143,7 +118,6 @@ async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise ValueError
         context.user_data['depth'] = depth
         
-        # Элементы шкафа
         keyboard = [
             ["Крыша", "Правая стена", "Левая стена"],
             ["Задняя стенка", "Дно", "Далее"]
@@ -293,7 +267,6 @@ async def get_metal_cutting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise ValueError
         context.user_data['metal_cutting'] = count
         
-        # Тип Р/С
         keyboard = [["До 6 м² (300 ₽/шт)"], ["Более 6 м² (500 ₽/шт)"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
         await update.message.reply_text("Выберите тип рольставней:", reply_markup=reply_markup)
@@ -309,7 +282,6 @@ async def get_rs_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         context.user_data['rs_type'] = 'over6'
     
-    # Тип стеллажа
     keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
     await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
@@ -411,7 +383,6 @@ async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         context.user_data['second_installer'] = False
     
-    # Условия высоты
     height = context.user_data['height']
     if height >= 3000:
         context.user_data['height_over_3000'] = True
@@ -433,7 +404,6 @@ async def get_distance_kad(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise ValueError
         context.user_data['distance_kad'] = distance
         
-        # Теперь материалы
         keyboard = [[mat] for mat in MATERIALS['wall']]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
         await update.message.reply_text("Выберите материал для стенок:", reply_markup=reply_markup)
@@ -442,7 +412,6 @@ async def get_distance_kad(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Пожалуйста, введите корректное число (расстояние в км):")
         return DISTANCE_KAD
 
-# Обработчики материалов
 async def get_wall_material(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['wall_material'] = update.message.text
     keyboard = [[mat] for mat in MATERIALS['roof']]
@@ -481,7 +450,6 @@ async def get_color(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['shelf_material'] = update.message.text
     
-    # Теперь опции
     keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
     await update.message.reply_text(
@@ -510,13 +478,11 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     results = []
     total = 0
     
-    # Базовые затраты
     results.append("Выход на работу: 2000 ₽")
     total += 2000
     results.append("Доставка 1 заказ: 2000 ₽")
     total += 2000
     
-    # Элементы шкафа
     elements = data.get('elements', [])
     width = data['width']
     height = data['height']
@@ -551,7 +517,6 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"На дно квинтет: {covering_cost:.0f} ₽")
             total += covering_cost
     
-    # Рольставни
     rs_count = data.get('rs_count', 0)
     if rs_count > 0:
         if data['rs_type'] == 'upTo6':
@@ -562,7 +527,6 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"Р/С более 6 м² ({rs_count} шт): {rs_cost} ₽")
         total += rs_cost
     
-    # Стеллажи
     shelves = data.get('shelves', 0)
     if shelves > 0 and data['shelf_type'] == 'standard':
         shelf_width = width / 1000
@@ -599,7 +563,6 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"Подгонка по ширине СГР: {adj_cost} ₽")
             total += adj_cost
     
-    # Дополнительные опции
     selected_opts = data.get('selected_options', [])
     opt_counts = {
         "Вент. решетка": 1,
@@ -636,7 +599,6 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"Видеоотзыв: {cost} ₽")
             total += cost
     
-    # Условия работы
     if data.get('second_installer'):
         total += PRICE_LIST['Второй монтажник']
         results.append("Второй монтажник: 2000 ₽")
@@ -648,18 +610,15 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total += PRICE_LIST['Высота шкафа 3м и более']
         results.append("Высота 3м и более: 1000 ₽")
     
-    # Расстояние
     distance = data.get('distance_kad', 0)
     if distance > 0:
         delivery_cost = distance * PRICE_LIST['Выезд за МКАД более 10 км. (15Руб/км)']
         results.append(f"Выезд за КАД ({distance} км): {delivery_cost:.0f} ₽")
         total += delivery_cost
     
-    # Вывод результата
     result_text = "📋 Результаты расчёта:\n\n" + "\n".join(results) + f"\n\n💰 ИТОГО: {total:.0f} ₽"
     await update.message.reply_text(result_text, reply_markup=ReplyKeyboardRemove())
     
-    # Предложить новый расчёт
     keyboard = [["/start"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
     await update.message.reply_text("Хотите сделать новый расчёт?", reply_markup=reply_markup)
@@ -671,9 +630,19 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    # Замените 'YOUR_BOT_TOKEN' на токен от @BotFather
-    application = Application.builder().token("YOUR_BOT_TOKEN").build()
-    
+    TOKEN = os.environ.get("BOT_TOKEN")
+    print(f"🚀 BOT_TOKEN (length={len(TOKEN) if TOKEN else 0}): '{TOKEN}'")
+
+    if not TOKEN:
+        print("❌ Переменная BOT_TOKEN не установлена!")
+        return
+
+    try:
+        application = Application.builder().token(TOKEN).build()
+    except Exception as e:
+        print(f"❌ Ошибка при создании бота: {e}")
+        return
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -708,7 +677,7 @@ def main():
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
-    
+
     application.add_handler(conv_handler)
     application.run_polling()
 
