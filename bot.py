@@ -673,7 +673,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     import os  # Убедитесь, что os импортирован (у вас уже есть в начале файла)
     
-    TOKEN = os.environ.get("BOT_TOKEN")
+    TOKEN = "8131813785:AAEn4UkKQ2Ahfzoz53YD-PRMmbTRZjSB3hE"
     print(f"🚀 BOT_TOKEN (length={len(TOKEN) if TOKEN else 0}): '{TOKEN}'")  # ДЕБАГ
     
     if not TOKEN:
