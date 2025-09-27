@@ -1,8 +1,22 @@
 import os
-token = os.environ.get("BOT_TOKEN")
-print("BOT_TOKEN is set:", token is not None, "length:", len(token) if token else 0)
-if not token:
+from dotenv import load_dotenv
+load_dotenv()  # подхватит .env, если он есть рядом
+
+TOKEN = (
+    os.getenv("BOT_TOKEN")
+    or os.getenv("TELEGRAM_TOKEN")
+    or os.getenv("TOKEN")
+)
+
+# убрать случайные кавычки из UI
+if TOKEN:
+    TOKEN = TOKEN.strip().strip('"').strip("'")
+
+print("BOT_TOKEN is set:", bool(TOKEN), "length:", len(TOKEN) if TOKEN else 0)
+
+if not TOKEN:
     raise RuntimeError("BOT_TOKEN is not set. Define env var or .env")
+
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
