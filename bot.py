@@ -648,7 +648,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    TOKEN = "8131813785:AAEn4UkKQ2Ahfzoz53YD-PRMmbTRZjSB3hE"
+    TOKEN = "8258670576:AAEeT3bQfOQ1Euqdbw3jVhEXVETmyQ43iXs"
     print(f"🚀 BOT_TOKEN (length={len(TOKEN) if TOKEN else 0}): '{TOKEN}'")
 
     if not TOKEN:
