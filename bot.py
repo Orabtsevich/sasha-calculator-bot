@@ -779,24 +779,48 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     shelves = data.get('shelves', 0)
     if shelves > 0 and data['shelf_type'] == 'standard':
-        shelf_width = width / 1000
-        if data.get('custom_shelf_sizes'):
-            if data.get('shelf_widths'):
-                avg_width = sum(data['shelf_widths']) / len(data['shelf_widths']) / 1000
-                shelf_width = avg_width
+        # Расчет стоимости полок и рамы
+        total_shelf_cost = 0
+        total_frame_cost = 0
         
+        if data.get('custom_shelf_sizes') and data.get('shelf_widths'):
+            # Обрабатываем каждую полку отдельно
+            for i, width_mm in enumerate(data['shelf_widths']):
+                width_m = width_mm / 1000  # переводим в метры
+                
+                if data['shelf_material'] == 'Металл':
+                    shelf_cost = width_m * PRICE_LIST['Установка полок металл. м/п']
+                elif data['shelf_material'] == 'Плита OSB 22 мм':
+                    shelf_cost = width_m * PRICE_LIST['Установка полок OSB. м/п']
+                
+                frame_cost = width_m * PRICE_LIST['Рама стеллажа + упор. м/п']
+                
+                total_shelf_cost += shelf_cost
+                total_frame_cost += frame_cost
+        
+        else:
+            # Все полки = ширине шкафа
+            shelf_width_m = width / 1000
+            for i in range(shelves):
+                if data['shelf_material'] == 'Металл':
+                    shelf_cost = shelf_width_m * PRICE_LIST['Установка полок металл. м/п']
+                elif data['shelf_material'] == 'Плита OSB 22 мм':
+                    shelf_cost = shelf_width_m * PRICE_LIST['Установка полок OSB. м/п']
+                
+                frame_cost = shelf_width_m * PRICE_LIST['Рама стеллажа + упор. м/п']
+                
+                total_shelf_cost += shelf_cost
+                total_frame_cost += frame_cost
+        
+        # Добавляем в результаты
         if data['shelf_material'] == 'Металл':
-            shelf_cost = shelves * shelf_width * PRICE_LIST['Установка полок металл. м/п']
-            results.append(f"Установка полок металл: {shelf_cost:.0f} ₽")
-            total += shelf_cost
-        elif data['shelf_material'] == 'Плита OSB 22 мм':
-            shelf_cost = shelves * shelf_width * PRICE_LIST['Установка полок OSB. м/п']
-            results.append(f"Установка полок OSB: {shelf_cost:.0f} ₽")
-            total += shelf_cost
+            results.append(f"Установка полок металл: {total_shelf_cost:.0f} ₽")
+        else:
+            results.append(f"Установка полок OSB: {total_shelf_cost:.0f} ₽")
+        total += total_shelf_cost
         
-        frame_cost = shelves * shelf_width * PRICE_LIST['Рама стеллажа + упор. м/п']
-        results.append(f"Рама стеллажа + упор: {frame_cost:.0f} ₽")
-        total += frame_cost
+        results.append(f"Рама стеллажа + упор: {total_frame_cost:.0f} ₽")
+        total += total_frame_cost
     
     elif shelves > 0 and data['shelf_type'] == 'sgr':
         frame_cost = shelves * PRICE_LIST['Рама стеллаж. шт']
