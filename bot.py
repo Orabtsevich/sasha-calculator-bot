@@ -12,13 +12,13 @@ logger = logging.getLogger(__name__)
 
 # Состояния диалога
 (
-    ADDRESS, WIDTH, HEIGHT, DEPTH, ELEMENTS, RS_COUNT, POSTS, SHELVES,
+    ADDRESS, WIDTH, HEIGHT, ELEMENTS, RS_COUNT, SHELVES,
     SHELF_SIZES_CHOICE, CUSTOM_SHELF_SIZES, ROD, FALSE_PANEL, METAL_CUTTING,
     RS_TYPE, SHELF_TYPE, SGR_TIERS, SGR_ADJUSTMENT, BUMPER_INSTALLATION,
     BUMPER_TRANSFER, SECOND_INSTALLER, DISTANCE_KAD, WALL_MATERIAL,
     ROOF_MATERIAL, RS_PROFILE, FLOOR_COVERING, COLOR, SHELF_MATERIAL,
-    OPTIONS, RESTART
-) = range(29)
+    OPTIONS, OPTION_COUNT, RESTART
+) = range(28)
 
 # Прайс-лист
 PRICE_LIST = {
@@ -68,12 +68,22 @@ MATERIALS = {
 
 OPTIONS_LIST = [
     "Вент. решетка",
-    "LED светильник",
+    "LED светильник", 
     "Электропривод",
     "Стойки для колес",
     "Фото заказчика",
     "Видеоотзыв"
 ]
+
+# Соответствие опций и их цен в прайсе
+OPTION_PRICE_KEYS = {
+    "Вент. решетка": "Вент решетки (стенки) шт",
+    "LED светильник": "LED светильник. шт",
+    "Электропривод": "Электропривод (подключение) шт",
+    "Стойки для колес": "Стойки для колес. шт",
+    "Фото заказчика": "Фото заказчика на фоне шкафа. шт",
+    "Видеоотзыв": "Видеоотзыв"
+}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -105,18 +115,6 @@ async def get_height(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if height < 0:
             raise ValueError
         context.user_data['height'] = height
-        await update.message.reply_text("Введите глубину шкафа в миллиметрах (например: 800):")
-        return DEPTH
-    except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (высота в мм, только цифры):")
-        return HEIGHT
-
-async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        depth = int(update.message.text)
-        if depth < 0:
-            raise ValueError
-        context.user_data['depth'] = depth
         
         keyboard = [
             ["Крыша", "Правая стена", "Левая стена"],
@@ -135,16 +133,13 @@ async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['elements'] = []
         return ELEMENTS
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число (глубина в мм, только цифры):")
-        return DEPTH
+        await update.message.reply_text("Пожалуйста, введите корректное число (высота в мм, только цифры):")
+        return HEIGHT
 
 async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    logger.info(f"Получено сообщение в состоянии ELEMENTS: '{text}'")
     
     if text == "Далее":
-        logger.info("Пользователь нажал 'Далее', переход к RS_COUNT")
-        # Удаляем клавиатуру и просим ввести количество Р/С
         await update.message.reply_text(
             "🔢 Введите количество Р/С (рольставней):", 
             reply_markup=ReplyKeyboardRemove()
@@ -168,7 +163,6 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         message = "❌ Выберите элемент из списка ниже."
     
-    # Показываем клавиатуру снова после каждого действия
     keyboard = [
         ["Крыша", "Правая стена", "Левая стена"],
         ["Задняя стенка", "Дно", "Далее"]
@@ -182,31 +176,18 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ELEMENTS
 
 async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"Получено сообщение в состоянии RS_COUNT: '{update.message.text}'")
     try:
         count = int(update.message.text)
         if count < 0:
             raise ValueError
         context.user_data['rs_count'] = count
-        await update.message.reply_text("🔢 Введите количество стоек (постов):")
-        return POSTS
+        await update.message.reply_text("🔢 Введите количество полок:")
+        return SHELVES
     except ValueError:
         await update.message.reply_text(
             "❌ Пожалуйста, введите корректное число (только цифры):"
         )
         return RS_COUNT
-
-async def get_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        count = int(update.message.text)
-        if count < 0:
-            raise ValueError
-        context.user_data['posts'] = count
-        await update.message.reply_text("🔢 Введите количество полок:")
-        return SHELVES
-    except ValueError:
-        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
-        return POSTS
 
 async def get_shelves(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -329,7 +310,6 @@ async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Установка ярусов? (да/нет):")
         return SGR_TIERS
     else:
-        # For non-SGR or no shelves, go directly to bumper installation
         await update.message.reply_text("Установка отбойников? (да/нет):")
         return BUMPER_INSTALLATION
 
@@ -340,16 +320,13 @@ async def get_sgr_tiers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SGR_ADJUSTMENT
     else:
         context.user_data['sgr_tiers'] = False
-        # Go to bumper installation after SGR tiers decision
         await update.message.reply_text("Установка отбойников? (да/нет):")
         return BUMPER_INSTALLATION
 
 async def get_sgr_adjustment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # This state is now only used for getting SGR tiers count
     try:
         count = int(update.message.text)
         context.user_data['sgr_tiers_count'] = count
-        # After getting tiers count, go to bumper installation
         await update.message.reply_text("Установка отбойников? (да/нет):")
         return BUMPER_INSTALLATION
     except ValueError:
@@ -466,12 +443,13 @@ async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data['shelf_material'] = update.message.text
     
     keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
     await update.message.reply_text(
-        "Выберите дополнительные опции (по одной):",
+        "Выберите дополнительные опции (по одной):\n"
+        "После выбора опции введите её количество, затем выберите следующую опцию или завершите выбор.",
         reply_markup=reply_markup
     )
-    context.user_data['selected_options'] = []
+    context.user_data['selected_options'] = {}
     return OPTIONS
 
 async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -481,18 +459,39 @@ async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     
     if text in OPTIONS_LIST:
-        context.user_data['selected_options'].append(text)
-        await update.message.reply_text(f"✅ Добавлено: {text}")
+        context.user_data['current_option'] = text
+        await update.message.reply_text(f"🔢 Введите количество '{text}':")
+        return OPTION_COUNT
     else:
         await update.message.reply_text("❌ Выберите опцию из списка.")
-    
-    return OPTIONS
+        return OPTIONS
+
+async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        count = int(update.message.text)
+        if count < 0:
+            raise ValueError
+        
+        current_option = context.user_data['current_option']
+        context.user_data['selected_options'][current_option] = count
+        
+        # Показываем клавиатуру снова для выбора следующей опции
+        keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+        await update.message.reply_text(
+            f"✅ Добавлено: {current_option} - {count} шт\n\n"
+            f"Выберите следующую опцию или завершите выбор:",
+            reply_markup=reply_markup
+        )
+        return OPTIONS
+    except ValueError:
+        await update.message.reply_text("❌ Пожалуйста, введите корректное число (только цифры):")
+        return OPTION_COUNT
 
 async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == "Начать новый расчёт":
         return await start(update, context)
     else:
-        # Если пользователь ввёл что-то другое, просто игнорируем
         await update.message.reply_text("Пожалуйста, используйте кнопку для нового расчёта.")
         return RESTART
 
@@ -581,41 +580,12 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"Установка ярусов СГР: {tier_cost:.0f} ₽")
             total += tier_cost
     
-    selected_opts = data.get('selected_options', [])
-    opt_counts = {
-        "Вент. решетка": 1,
-        "LED светильник": 1,
-        "Электропривод": 1,
-        "Стойки для колес": 1,
-        "Фото заказчика": 1,
-        "Видеоотзыв": 1
-    }
-    
-    for opt in selected_opts:
-        if opt == "Вент. решетка":
-            cost = opt_counts[opt] * PRICE_LIST['Вент решетки (стенки) шт']
-            results.append(f"Вент. решетка: {cost} ₽")
-            total += cost
-        elif opt == "LED светильник":
-            cost = opt_counts[opt] * PRICE_LIST['LED светильник. шт']
-            results.append(f"LED светильник: {cost} ₽")
-            total += cost
-        elif opt == "Электропривод":
-            cost = opt_counts[opt] * PRICE_LIST['Электропривод (подключение) шт']
-            results.append(f"Электропривод: {cost} ₽")
-            total += cost
-        elif opt == "Стойки для колес":
-            cost = opt_counts[opt] * PRICE_LIST['Стойки для колес. шт']
-            results.append(f"Стойки для колес: {cost} ₽")
-            total += cost
-        elif opt == "Фото заказчика":
-            cost = opt_counts[opt] * PRICE_LIST['Фото заказчика на фоне шкафа. шт']
-            results.append(f"Фото заказчика: {cost} ₽")
-            total += cost
-        elif opt == "Видеоотзыв":
-            cost = opt_counts[opt] * PRICE_LIST['Видеоотзыв']
-            results.append(f"Видеоотзыв: {cost} ₽")
-            total += cost
+    selected_opts = data.get('selected_options', {})
+    for opt, count in selected_opts.items():
+        price_key = OPTION_PRICE_KEYS[opt]
+        cost = count * PRICE_LIST[price_key]
+        results.append(f"{opt} ({count} шт): {cost} ₽")
+        total += cost
     
     if data.get('second_installer'):
         total += PRICE_LIST['Второй монтажник']
@@ -667,10 +637,8 @@ def main():
             ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
             WIDTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_width)],
             HEIGHT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_height)],
-            DEPTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_depth)],
             ELEMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_elements)],
             RS_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_rs_count)],
-            POSTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_posts)],
             SHELVES: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelves)],
             SHELF_SIZES_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, shelf_sizes_choice)],
             CUSTOM_SHELF_SIZES: [MessageHandler(filters.TEXT & ~filters.COMMAND, custom_shelf_sizes)],
@@ -692,6 +660,7 @@ def main():
             COLOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_color)],
             SHELF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_material)],
             OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_options)],
+            OPTION_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_option_count)],
             RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, restart_calculation)],
         },
         fallbacks=[CommandHandler('cancel', cancel)]
