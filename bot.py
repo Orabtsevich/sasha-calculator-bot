@@ -1,6 +1,6 @@
 import os
 import logging
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
 
 # Настройка логирования
@@ -140,7 +140,10 @@ async def get_depth(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    logger.info(f"Получено сообщение в состоянии ELEMENTS: '{text}'")
+    
     if text == "Далее":
+        logger.info("Пользователь нажал 'Далее', переход к RS_COUNT")
         # Удаляем клавиатуру и просим ввести количество Р/С
         await update.message.reply_text(
             "🔢 Введите количество Р/С (рольставней):", 
@@ -179,6 +182,7 @@ async def get_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ELEMENTS
 
 async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Получено сообщение в состоянии RS_COUNT: '{update.message.text}'")
     try:
         count = int(update.message.text)
         if count < 0:
@@ -644,7 +648,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    TOKEN = "8258670576:AAEeT3bQfOQ1Euqdbw3jVhEXVETmyQ43iXs"
+    TOKEN = "8131813785:AAEn4UkKQ2Ahfzoz53YD-PRMmbTRZjSB3hE"
     print(f"🚀 BOT_TOKEN (length={len(TOKEN) if TOKEN else 0}): '{TOKEN}'")
 
     if not TOKEN:
