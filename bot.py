@@ -15,15 +15,15 @@ logger = logging.getLogger(__name__)
 OFFICE_COORDS = "59.973050,30.445787"
 OFFICE_ADDRESS = "Санкт-Петербург, ул. Комсомола, 2к1"
 
-# Состояния диалога (всего 31 состояние)
+# Состояния диалога
 (
     ADDRESS, DISTANCE_KAD, WIDTH, HEIGHT, ELEMENTS, RS_COUNT, RS_WIDER_THAN_2M, 
     RS_TYPE, SHELVES, SHELF_SIZES_CHOICE, CUSTOM_SHELF_SIZES, ROD, FALSE_PANEL, 
     METAL_CUTTING, SHELF_TYPE, SGR_TIERS, SGR_ADJUSTMENT, BUMPER_INSTALLATION, 
     BUMPER_TRANSFER, SECOND_INSTALLER, WALL_MATERIAL, ROOF_MATERIAL, RS_PROFILE, 
-    FLOOR_COVERING, COLOR, SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART, 
-    EDIT_MENU, EDIT_FIELD
-) = range(31)
+    FLOOR_COVERING, COLOR, SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART,
+    SHOW_SUMMARY
+) = range(30)
 
 # Прайс-лист
 PRICE_LIST = {
@@ -95,37 +95,6 @@ OPTION_PRICE_KEYS = {
 
 # Клавиатура для да/нет
 YES_NO_KEYBOARD = [["Да", "Нет"]]
-
-# Словарь для отображения названий полей
-FIELD_NAMES = {
-    'address': 'Адрес монтажа',
-    'distance_kad': 'Расстояние от КАД (км)',
-    'width': 'Ширина шкафа (мм)',
-    'height': 'Высота шкафа (мм)',
-    'elements': 'Элементы шкафа',
-    'rs_count': 'Количество рольставен',
-    'rs_wider_than_2m': 'Вторая Р/С шире 2м',
-    'shelves': 'Количество полок',
-    'rod': 'Количество штанг',
-    'false_panel': 'Количество фальш-панелей',
-    'metal_cutting': 'Резка металл/ламелей (шт)',
-    'rs_type': 'Тип рольставней',
-    'shelf_type': 'Тип стеллажа',
-    'sgr_tiers': 'Установка ярусов',
-    'sgr_tiers_count': 'Количество ярусов',
-    'bumper_installation': 'Установка отбойников',
-    'bumper_installation_count': 'Количество комплектов отбойников',
-    'bumper_transfer': 'Перенос отбойников',
-    'bumper_transfer_count': 'Количество комплектов переноса',
-    'second_installer': 'Второй монтажник',
-    'wall_material': 'Материал стенок',
-    'roof_material': 'Материал крыши',
-    'rs_profile': 'Профиль Р/С',
-    'floor_covering': 'Покрытие дна',
-    'color': 'Цвет',
-    'shelf_material': 'Материал полок',
-    'selected_options': 'Дополнительные опции'
-}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -528,8 +497,14 @@ async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "Завершить выбор":
-        await calculate_result(update, context)
-        return ConversationHandler.END
+        # Показываем сводку перед финальным расчетом
+        keyboard = [["Показать результат", "Редактировать данные"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text(
+            "Все данные собраны! Что хотите сделать?",
+            reply_markup=reply_markup
+        )
+        return SHOW_SUMMARY
     
     if text in OPTIONS_LIST:
         if text in BOOLEAN_OPTIONS:
@@ -572,6 +547,164 @@ async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("Пожалуйста, введите корректное число:")
         return OPTION_COUNT
+
+async def show_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text
+    if choice == "Показать результат":
+        await calculate_result(update, context)
+        return ConversationHandler.END
+    elif choice == "Редактировать данные":
+        # Простое редактирование - перезапускаем с текущими данными
+        await show_edit_menu(update, context)
+        return RESTART
+
+async def show_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает текущие данные и предлагает ввести новое значение для любого поля"""
+    data = context.user_data
+    
+    summary = "📋 Текущие данные:\n\n"
+    
+    # Основные параметры
+    summary += f"📍 Адрес: {data.get('address', 'Не указан')}\n"
+    summary += f"🚗 Расстояние от КАД: {data.get('distance_kad', 0)} км\n"
+    summary += f"↔️ Ширина шкафа: {data.get('width', 0)} мм\n"
+    summary += f"↕️ Высота шкафа: {data.get('height', 0)} мм\n"
+    
+    # Элементы шкафа
+    if data.get('elements'):
+        elements_map = {'roof': 'Крыша', 'right_wall': 'Правая стена', 'left_wall': 'Левая стена', 'back_wall': 'Задняя стенка', 'floor': 'Дно'}
+        elements_str = ', '.join([elements_map.get(e, e) for e in data['elements']])
+        summary += f"📦 Элементы: {elements_str}\n"
+    
+    # Рольставни
+    summary += f"🚪 Рольставни: {data.get('rs_count', 0)} шт\n"
+    if data.get('rs_wider_than_2m'):
+        summary += "📏 Вторая Р/С шире 2м: Да\n"
+    if data.get('rs_type'):
+        summary += f"🏷️ Тип Р/С: {'До 6 м²' if data['rs_type'] == 'upTo6' else 'Более 6 м²'}\n"
+    
+    # Полки и стеллаж
+    summary += f"🧱 Полки: {data.get('shelves', 0)} шт\n"
+    if data.get('shelf_type'):
+        shelf_types = {'none': 'Без стеллажа', 'standard': 'Стандарт', 'sgr': 'СГР'}
+        summary += f"🪜 Тип стеллажа: {shelf_types.get(data['shelf_type'], data['shelf_type'])}\n"
+    
+    # Отбойники и монтажники
+    if data.get('bumper_installation'):
+        summary += f"🛡️ Установка отбойников: {data.get('bumper_installation_count', 0)} комплектов\n"
+    if data.get('bumper_transfer'):
+        summary += f"🔄 Перенос отбойников: {data.get('bumper_transfer_count', 0)} комплектов\n"
+    if data.get('second_installer'):
+        summary += "👷 Второй монтажник: Да\n"
+    
+    # Материалы
+    if data.get('wall_material'):
+        summary += f"🧱 Материал стенок: {data['wall_material']}\n"
+    if data.get('roof_material'):
+        summary += f"🏠 Материал крыши: {data['roof_material']}\n"
+    if data.get('rs_profile'):
+        summary += f"🚪 Профиль Р/С: {data['rs_profile']}\n"
+    if data.get('floor_covering'):
+        summary += f"🪵 Покрытие дна: {data['floor_covering']}\n"
+    if data.get('color'):
+        summary += f"🎨 Цвет: {data['color']}\n"
+    if data.get('shelf_material'):
+        summary += f"📦 Материал полок: {data['shelf_material']}\n"
+    
+    # Дополнительные опции
+    if data.get('selected_options'):
+        options_str = ', '.join([f"{opt} ({count})" if count > 1 else opt 
+                               for opt, count in data['selected_options'].items()])
+        summary += f"➕ Доп. опции: {options_str}\n"
+    
+    summary += "\nЧтобы изменить любое значение, просто введите его в формате:\n"
+    summary += "поле = новое значение\n\n"
+    summary += "Примеры:\n"
+    summary += "ширина = 2500\n"
+    summary += "адрес = Новый адрес\n"
+    summary += "второй монтажник = нет\n\n"
+    summary += "Или введите 'готово' для показа результата."
+    
+    await update.message.reply_text(summary)
+    return RESTART
+
+async def handle_edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.lower().strip()
+    
+    if text == "готово":
+        await calculate_result(update, context)
+        return ConversationHandler.END
+    
+    # Парсим ввод в формате "поле = значение"
+    if "=" in text:
+        try:
+            field_part, value_part = text.split("=", 1)
+            field = field_part.strip()
+            value = value_part.strip()
+            
+            # Сопоставление полей
+            field_mapping = {
+                'адрес': 'address',
+                'расстояние': 'distance_kad', 'расстояние от кад': 'distance_kad',
+                'ширина': 'width', 'ширина шкафа': 'width',
+                'высота': 'height', 'высота шкафа': 'height',
+                'вторая р/с шире 2м': 'rs_wider_than_2m', 'вторая рольставня': 'rs_wider_than_2m',
+                'второй монтажник': 'second_installer',
+                'установка отбойников': 'bumper_installation',
+                'перенос отбойников': 'bumper_transfer'
+            }
+            
+            # Числовые поля
+            if field in ['расстояние', 'расстояние от кад']:
+                context.user_data['distance_kad'] = float(value)
+                await update.message.reply_text("✅ Расстояние обновлено!")
+            elif field in ['ширина', 'ширина шкафа']:
+                context.user_data['width'] = int(value)
+                await update.message.reply_text("✅ Ширина обновлена!")
+            elif field in ['высота', 'высота шкафа']:
+                height = int(value)
+                context.user_data['height'] = height
+                # Обновляем флаги высоты
+                if height >= 3000:
+                    context.user_data['height_over_3000'] = True
+                    context.user_data['height_over_2500'] = False
+                elif height >= 2500:
+                    context.user_data['height_over_2500'] = True
+                    context.user_data['height_over_3000'] = False
+                else:
+                    context.user_data['height_over_2500'] = False
+                    context.user_data['height_over_3000'] = False
+                await update.message.reply_text("✅ Высота обновлена!")
+            elif field == 'адрес':
+                context.user_data['address'] = value
+                await update.message.reply_text("✅ Адрес обновлен!")
+            elif field in ['вторая р/с шире 2м', 'вторая рольставня']:
+                context.user_data['rs_wider_than_2m'] = value.lower() in ['да', 'yes', '1', 'true']
+                await update.message.reply_text("✅ Вторая Р/С обновлена!")
+            elif field == 'второй монтажник':
+                context.user_data['second_installer'] = value.lower() in ['да', 'yes', '1', 'true']
+                await update.message.reply_text("✅ Второй монтажник обновлен!")
+            elif field == 'установка отбойников':
+                context.user_data['bumper_installation'] = value.lower() in ['да', 'yes', '1', 'true']
+                await update.message.reply_text("✅ Установка отбойников обновлена!")
+            elif field == 'перенос отбойников':
+                context.user_data['bumper_transfer'] = value.lower() in ['да', 'yes', '1', 'true']
+                await update.message.reply_text("✅ Перенос отбойников обновлен!")
+            else:
+                await update.message.reply_text("Неизвестное поле. Используйте: адрес, расстояние, ширина, высота, вторая р/с шире 2м, второй монтажник, установка отбойников, перенос отбойников")
+            
+            # Показываем обновленное меню
+            await show_edit_menu(update, context)
+            return RESTART
+            
+        except (ValueError, IndexError):
+            await update.message.reply_text("Ошибка формата. Используйте: поле = значение")
+            await show_edit_menu(update, context)
+            return RESTART
+    else:
+        await update.message.reply_text("Используйте формат: поле = значение\nИли введите 'готово'")
+        await show_edit_menu(update, context)
+        return RESTART
 
 async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == "Начать новый расчёт":
@@ -772,7 +905,8 @@ def main():
             SHELF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_material)],
             OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_options)],
             OPTION_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_option_count)],
-            RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, restart_calculation)],
+            SHOW_SUMMARY: [MessageHandler(filters.TEXT & ~filters.COMMAND, show_summary)],
+            RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edit_input)],
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
