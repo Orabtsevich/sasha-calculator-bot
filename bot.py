@@ -22,8 +22,8 @@ OFFICE_ADDRESS = "Санкт-Петербург, ул. Комсомола, 2к1"
     ROD, FALSE_PANEL, METAL_CUTTING, RS_TYPE, SHELF_TYPE, SGR_TIERS, 
     SGR_ADJUSTMENT, BUMPER_INSTALLATION, BUMPER_TRANSFER, SECOND_INSTALLER, 
     WALL_MATERIAL, ROOF_MATERIAL, RS_PROFILE, FLOOR_COVERING, COLOR, 
-    SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART, EDIT_MODE, EDIT_CHOICE
-) = range(32)
+    SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART, EDIT_CHOICE, EDIT_FIELD
+) = range(31)
 
 # Прайс-лист
 PRICE_LIST = {
@@ -127,6 +127,16 @@ FIELD_NAMES = {
     'selected_options': 'Дополнительные опции'
 }
 
+# Определяем зависимости между полями
+FIELD_DEPENDENCIES = {
+    'height': ['elements', 'second_installer'],  # Изменение высоты влияет на элементы и второго монтажника
+    'width': ['elements', 'shelves', 'shelf_material'],  # Ширина влияет на элементы и полки
+    'rs_count': ['rs_wider_than_2m', 'rs_type'],  # Количество Р/С влияет на тип и ширину
+    'shelf_type': ['sgr_tiers', 'sgr_tiers_count'],  # Тип стеллажа влияет на ярусы
+    'bumper_installation': ['bumper_installation_count', 'bumper_transfer'],
+    'bumper_transfer': ['bumper_transfer_count', 'second_installer']
+}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Привет! Я калькулятор зарплаты мастера Саши.\n\n"
@@ -184,6 +194,17 @@ async def get_height(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if height < 0:
             raise ValueError
         context.user_data['height'] = height
+        
+        # Обновляем флаги высоты
+        if height >= 3000:
+            context.user_data['height_over_3000'] = True
+            context.user_data['height_over_2500'] = False
+        elif height >= 2500:
+            context.user_data['height_over_2500'] = True
+            context.user_data['height_over_3000'] = False
+        else:
+            context.user_data['height_over_2500'] = False
+            context.user_data['height_over_3000'] = False
         
         keyboard = [
             ["Крыша", "Правая стена", "Левая стена"],
@@ -253,6 +274,9 @@ async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return RS_WIDER_THAN_2M
         else:
             # Если только одна рольставня, переходим к выбору типа
+            # Удаляем флаг второй Р/С если он был установлен ранее
+            if 'rs_wider_than_2m' in context.user_data:
+                del context.user_data['rs_wider_than_2m']
             keyboard = [["До 6 м² (300 ₽/шт)"], ["Более 6 м² (500 ₽/шт)"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
             await update.message.reply_text("Выберите тип рольставней:", reply_markup=reply_markup)
@@ -299,6 +323,9 @@ async def get_shelves(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return SHELF_SIZES_CHOICE
         else:
             context.user_data['custom_shelf_sizes'] = False
+            # Очищаем данные о размерах полок если они не нужны
+            if 'shelf_widths' in context.user_data:
+                del context.user_data['shelf_widths']
             await update.message.reply_text("Введите количество штанг:")
             return ROD
     except ValueError:
@@ -315,6 +342,8 @@ async def shelf_sizes_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return CUSTOM_SHELF_SIZES
     else:
         context.user_data['custom_shelf_sizes'] = False
+        if 'shelf_widths' in context.user_data:
+            del context.user_data['shelf_widths']
         await update.message.reply_text("Введите количество штанг:")
         return ROD
 
@@ -382,8 +411,16 @@ async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text
     if "Без стеллажа" in choice:
         context.user_data['shelf_type'] = 'none'
+        # Очищаем связанные данные
+        for field in ['sgr_tiers', 'sgr_tiers_count']:
+            if field in context.user_data:
+                del context.user_data[field]
     elif "Стандарт" in choice:
         context.user_data['shelf_type'] = 'standard'
+        # Очищаем SGR данные
+        for field in ['sgr_tiers', 'sgr_tiers_count']:
+            if field in context.user_data:
+                del context.user_data[field]
     else:
         context.user_data['shelf_type'] = 'sgr'
     
@@ -403,6 +440,8 @@ async def get_sgr_tiers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SGR_ADJUSTMENT
     else:
         context.user_data['sgr_tiers'] = False
+        if 'sgr_tiers_count' in context.user_data:
+            del context.user_data['sgr_tiers_count']
         reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
         await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
         return BUMPER_INSTALLATION
@@ -425,6 +464,8 @@ async def get_bumper_installation(update: Update, context: ContextTypes.DEFAULT_
         return BUMPER_TRANSFER
     else:
         context.user_data['bumper_installation'] = False
+        if 'bumper_installation_count' in context.user_data:
+            del context.user_data['bumper_installation_count']
         reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
         await update.message.reply_text("Перенос отбойников?", reply_markup=reply_markup)
         return BUMPER_TRANSFER
@@ -444,6 +485,8 @@ async def get_bumper_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE
         return SECOND_INSTALLER
     else:
         context.user_data['bumper_transfer'] = False
+        if 'bumper_transfer_count' in context.user_data:
+            del context.user_data['bumper_transfer_count']
         reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
         await update.message.reply_text("Второй монтажник?", reply_markup=reply_markup)
         return SECOND_INSTALLER
@@ -461,17 +504,6 @@ async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data['second_installer'] = True
     else:
         context.user_data['second_installer'] = False
-    
-    height = context.user_data['height']
-    if height >= 3000:
-        context.user_data['height_over_3000'] = True
-        context.user_data['height_over_2500'] = False
-    elif height >= 2500:
-        context.user_data['height_over_2500'] = True
-        context.user_data['height_over_3000'] = False
-    else:
-        context.user_data['height_over_2500'] = False
-        context.user_data['height_over_3000'] = False
     
     keyboard = [[mat] for mat in MATERIALS['wall']]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
@@ -627,64 +659,52 @@ async def show_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             display_name = FIELD_NAMES.get(field, field)
             edit_options.append([f"{display_name}: {value}"])
     
-    edit_options.append(["↩️ Вернуться к результатам"])
+    edit_options.append(["✅ Готово, показать результат"])
     
     reply_markup = ReplyKeyboardMarkup(edit_options, one_time_keyboard=False)
     await update.message.reply_text(
         "Выберите поле для редактирования (нажмите на строку с текущим значением):",
         reply_markup=reply_markup
     )
-    return EDIT_MODE
+    return EDIT_FIELD
 
-async def edit_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     
-    if text == "↩️ Вернуться к результатам":
-        # Возвращаемся к выбору показать результат или редактировать
-        keyboard = [["Показать результат", "Редактировать данные"]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-        await update.message.reply_text(
-            "Что хотите сделать?",
-            reply_markup=reply_markup
-        )
-        return EDIT_CHOICE
+    if text == "✅ Готово, показать результат":
+        await calculate_result(update, context)
+        return ConversationHandler.END
     
     # Найдем какое поле выбрано для редактирования
     for field, display_name in FIELD_NAMES.items():
         if text.startswith(f"{display_name}:"):
             context.user_data['editing_field'] = field
-            # Определим, какой обработчик использовать для этого поля
             return await handle_field_edit(update, context, field)
     
     await update.message.reply_text("Пожалуйста, выберите поле из списка для редактирования.")
-    return EDIT_MODE
+    return EDIT_FIELD
 
 async def handle_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, field):
-    """Определяет, какой обработчик использовать для редактирования конкретного поля"""
+    """Обрабатывает редактирование конкретного поля и возвращает в меню редактирования"""
     
-    # Словарь соответствия полей и их обработчиков
-    field_handlers = {
-        'address': get_address,
-        'distance_kad': get_distance_kad,
-        'width': get_width,
-        'height': get_height,
-        'rs_count': get_rs_count,
-        'rod': lambda u, c: _edit_simple_number(u, c, 'rod', "Введите количество штанг:"),
-        'false_panel': lambda u, c: _edit_simple_number(u, c, 'false_panel', "Введите количество фальш-панелей:"),
-        'metal_cutting': lambda u, c: _edit_simple_number(u, c, 'metal_cutting', "Введите количество резки металл/ламелей (шт):"),
-        'wall_material': lambda u, c: _edit_choice_field(u, c, 'wall_material', MATERIALS['wall'], "Выберите материал для стенок:"),
-        'roof_material': lambda u, c: _edit_choice_field(u, c, 'roof_material', MATERIALS['roof'], "Выберите материал для крыши:"),
-        'rs_profile': lambda u, c: _edit_choice_field(u, c, 'rs_profile', MATERIALS['rs_profile'], "Выберите профиль Р/С:"),
-        'floor_covering': lambda u, c: _edit_choice_field(u, c, 'floor_covering', MATERIALS['floor'], "Выберите покрытие дна:"),
-        'color': lambda u, c: _edit_choice_field(u, c, 'color', MATERIALS['color'], "Выберите цвет:"),
-        'shelf_material': lambda u, c: _edit_choice_field(u, c, 'shelf_material', MATERIALS['shelf'], "Выберите материал полок:"),
-    }
+    # Специальная обработка для разных типов полей
+    if field in ['address', 'distance_kad', 'width', 'height', 'rod', 'false_panel', 'metal_cutting']:
+        # Для простых числовых/текстовых полей просто запрашиваем новое значение
+        prompts = {
+            'address': "Введите новый адрес монтажа:",
+            'distance_kad': "Введите новое расстояние от КАД в километрах:",
+            'width': "Введите новую ширину шкафа:",
+            'height': "Введите новую высоту шкафа:",
+            'rod': "Введите новое количество штанг:",
+            'false_panel': "Введите новое количество фальш-панелей:",
+            'metal_cutting': "Введите новое количество резки металл/ламелей (шт):"
+        }
+        await update.message.reply_text(prompts[field])
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
     
-    # Специальные поля с да/нет
-    yes_no_fields = ['rs_wider_than_2m', 'sgr_tiers', 'bumper_installation', 'bumper_transfer', 'second_installer']
-    
-    if field in yes_no_fields:
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+    elif field in ['rs_wider_than_2m', 'sgr_tiers', 'bumper_installation', 'bumper_transfer', 'second_installer']:
+        # Для да/нет полей показываем кнопки
         field_names = {
             'rs_wider_than_2m': 'Вторая рольставня шире 2 метров?',
             'sgr_tiers': 'Установка ярусов?',
@@ -692,12 +712,60 @@ async def handle_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             'bumper_transfer': 'Перенос отбойников?',
             'second_installer': 'Второй монтажник?'
         }
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
         await update.message.reply_text(field_names[field], reply_markup=reply_markup)
-        context.user_data['editing_yes_no_field'] = field
-        return EDIT_MODE
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
     
-    # Поля, требующие специальной обработки
-    if field == 'elements':
+    elif field in ['wall_material', 'roof_material', 'rs_profile', 'floor_covering', 'color', 'shelf_material']:
+        # Для выбора из списка
+        choices = {
+            'wall_material': MATERIALS['wall'],
+            'roof_material': MATERIALS['roof'],
+            'rs_profile': MATERIALS['rs_profile'],
+            'floor_covering': MATERIALS['floor'],
+            'color': MATERIALS['color'],
+            'shelf_material': MATERIALS['shelf']
+        }
+        keyboard = [[choice] for choice in choices[field]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        prompts = {
+            'wall_material': "Выберите материал для стенок:",
+            'roof_material': "Выберите материал для крыши:",
+            'rs_profile': "Выберите профиль Р/С:",
+            'floor_covering': "Выберите покрытие дна:",
+            'color': "Выберите цвет:",
+            'shelf_material': "Выберите материал полок:"
+        }
+        await update.message.reply_text(prompts[field], reply_markup=reply_markup)
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
+    
+    elif field == 'rs_count':
+        await update.message.reply_text("Введите новое количество рольставен:")
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
+    
+    elif field == 'shelves':
+        await update.message.reply_text("Введите новое количество полок:")
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
+    
+    elif field == 'rs_type':
+        keyboard = [["До 6 м² (300 ₽/шт)"], ["Более 6 м² (500 ₽/шт)"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text("Выберите тип рольставней:", reply_markup=reply_markup)
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
+    
+    elif field == 'shelf_type':
+        keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
+    
+    elif field == 'elements':
         keyboard = [
             ["Крыша", "Правая стена", "Левая стена"],
             ["Задняя стенка", "Дно", "Далее"]
@@ -709,21 +777,10 @@ async def handle_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             reply_markup=reply_markup
         )
         context.user_data['elements'] = []  # Очищаем текущие элементы
-        return ELEMENTS
+        context.user_data['pending_edit_field'] = field
+        return EDIT_FIELD
     
-    if field == 'rs_type':
-        keyboard = [["До 6 м² (300 ₽/шт)"], ["Более 6 м² (500 ₽/шт)"]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-        await update.message.reply_text("Выберите тип рольставней:", reply_markup=reply_markup)
-        return RS_TYPE
-    
-    if field == 'shelf_type':
-        keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-        await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
-        return SHELF_TYPE
-    
-    if field == 'selected_options':
+    elif field == 'selected_options':
         keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
         await update.message.reply_text(
@@ -731,72 +788,188 @@ async def handle_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             reply_markup=reply_markup
         )
         context.user_data['selected_options'] = {}
+        context.user_data['pending_edit_field'] = field
+        # Для опций используем специальный обработчик
         return OPTIONS
     
-    # Используем стандартный обработчик для остальных полей
-    if field in field_handlers:
-        return await field_handlers[field](update, context)
-    else:
-        # Для полей, не требующих специальной обработки, просто запрашиваем новое значение
-        prompts = {
-            'sgr_tiers_count': "Введите количество ярусов:",
-            'bumper_installation_count': "Введите количество комплектов отбойников:",
-            'bumper_transfer_count': "Введите количество комплектов переноса:"
-        }
-        prompt = prompts.get(field, f"Введите новое значение для {FIELD_NAMES.get(field, field)}:")
-        await update.message.reply_text(prompt)
-        context.user_data['editing_simple_field'] = field
-        return EDIT_MODE
+    return EDIT_FIELD
 
-async def _edit_simple_number(update: Update, context: ContextTypes.DEFAULT_TYPE, field_name, prompt):
-    """Вспомогательная функция для редактирования числовых полей"""
-    try:
-        value = int(update.message.text)
-        if value < 0:
-            raise ValueError
-        context.user_data[field_name] = value
-        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field_name, field_name)} обновлено!")
+# Обработчики для сохранения отредактированных значений
+async def handle_edited_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обрабатывает введенные пользователем значения при редактировании"""
+    field = context.user_data.get('pending_edit_field')
+    if not field:
         return await show_edit_menu(update, context)
-    except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
-        return EDIT_MODE
-
-async def _edit_choice_field(update: Update, context: ContextTypes.DEFAULT_TYPE, field_name, choices, prompt):
-    """Вспомогательная функция для редактирования полей с выбором из списка"""
-    if update.message.text in choices:
-        context.user_data[field_name] = update.message.text
-        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field_name, field_name)} обновлено!")
-        return await show_edit_menu(update, context)
-    else:
-        keyboard = [[choice] for choice in choices]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-        await update.message.reply_text(prompt, reply_markup=reply_markup)
-        return EDIT_MODE
-
-# Обработчики для редактирования да/нет полей
-async def edit_yes_no_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    field = context.user_data.get('editing_yes_no_field')
-    if field:
-        if update.message.text == "Да":
+    
+    text = update.message.text
+    
+    # Обработка числовых полей
+    numeric_fields = ['distance_kad', 'width', 'height', 'rs_count', 'shelves', 'rod', 'false_panel', 'metal_cutting']
+    if field in numeric_fields:
+        try:
+            if field == 'distance_kad':
+                value = float(text)
+            else:
+                value = int(text)
+            if value < 0:
+                raise ValueError
+            context.user_data[field] = value
+            
+            # Особая обработка для высоты (обновление флагов)
+            if field == 'height':
+                height = value
+                if height >= 3000:
+                    context.user_data['height_over_3000'] = True
+                    context.user_data['height_over_2500'] = False
+                elif height >= 2500:
+                    context.user_data['height_over_2500'] = True
+                    context.user_data['height_over_3000'] = False
+                else:
+                    context.user_data['height_over_2500'] = False
+                    context.user_data['height_over_3000'] = False
+            
+            # Особая обработка для количества Р/С
+            if field == 'rs_count':
+                if value >= 2:
+                    # Оставляем существующее значение rs_wider_than_2m или устанавливаем по умолчанию
+                    pass
+                else:
+                    # Удаляем флаг второй Р/С если количество стало меньше 2
+                    if 'rs_wider_than_2m' in context.user_data:
+                        del context.user_data['rs_wider_than_2m']
+            
+            await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
+            return await show_edit_menu(update, context)
+        except ValueError:
+            prompts = {
+                'distance_kad': "Пожалуйста, введите корректное число (расстояние в км):",
+                'width': "Пожалуйста, введите корректное число (ширина в мм):",
+                'height': "Пожалуйста, введите корректное число (высота в мм):",
+                'rs_count': "Пожалуйста, введите корректное число (количество Р/С):",
+                'shelves': "Пожалуйста, введите корректное число (количество полок):",
+                'rod': "Пожалуйста, введите корректное число (количество штанг):",
+                'false_panel': "Пожалуйста, введите корректное число (количество фальш-панелей):",
+                'metal_cutting': "Пожалуйста, введите корректное число (количество резки):"
+            }
+            await update.message.reply_text(prompts[field])
+            return EDIT_FIELD
+    
+    # Обработка да/нет полей
+    yes_no_fields = ['rs_wider_than_2m', 'sgr_tiers', 'bumper_installation', 'bumper_transfer', 'second_installer']
+    if field in yes_no_fields:
+        if text == "Да":
             context.user_data[field] = True
         else:
             context.user_data[field] = False
         await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
         return await show_edit_menu(update, context)
-    return EDIT_MODE
-
-# Обработчик для простых текстовых полей
-async def edit_simple_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    field = context.user_data.get('editing_simple_field')
-    if field:
-        context.user_data[field] = update.message.text
+    
+    # Обработка полей выбора из списка
+    choice_fields = ['wall_material', 'roof_material', 'rs_profile', 'floor_covering', 'color', 'shelf_material']
+    if field in choice_fields:
+        choices = {
+            'wall_material': MATERIALS['wall'],
+            'roof_material': MATERIALS['roof'],
+            'rs_profile': MATERIALS['rs_profile'],
+            'floor_covering': MATERIALS['floor'],
+            'color': MATERIALS['color'],
+            'shelf_material': MATERIALS['shelf']
+        }
+        if text in choices[field]:
+            context.user_data[field] = text
+            await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
+            return await show_edit_menu(update, context)
+        else:
+            # Повторно показываем выбор
+            keyboard = [[choice] for choice in choices[field]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+            prompts = {
+                'wall_material': "Выберите материал для стенок:",
+                'roof_material': "Выберите материал для крыши:",
+                'rs_profile': "Выберите профиль Р/С:",
+                'floor_covering': "Выберите покрытие дна:",
+                'color': "Выберите цвет:",
+                'shelf_material': "Выберите материал полок:"
+            }
+            await update.message.reply_text(prompts[field], reply_markup=reply_markup)
+            return EDIT_FIELD
+    
+    # Обработка типа Р/С
+    if field == 'rs_type':
+        if "До 6 м²" in text:
+            context.user_data[field] = 'upTo6'
+        else:
+            context.user_data[field] = 'over6'
         await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
         return await show_edit_menu(update, context)
-    return EDIT_MODE
+    
+    # Обработка типа стеллажа
+    if field == 'shelf_type':
+        if "Без стеллажа" in text:
+            context.user_data[field] = 'none'
+            # Очищаем связанные данные
+            for f in ['sgr_tiers', 'sgr_tiers_count']:
+                if f in context.user_data:
+                    del context.user_data[f]
+        elif "Стандарт" in text:
+            context.user_data[field] = 'standard'
+            # Очищаем SGR данные
+            for f in ['sgr_tiers', 'sgr_tiers_count']:
+                if f in context.user_data:
+                    del context.user_data[f]
+        else:
+            context.user_data[field] = 'sgr'
+        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
+        return await show_edit_menu(update, context)
+    
+    # Обработка адреса
+    if field == 'address':
+        context.user_data[field] = text
+        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
+        return await show_edit_menu(update, context)
+    
+    return await show_edit_menu(update, context)
+
+async def handle_edited_elements(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка редактирования элементов шкафа"""
+    text = update.message.text
+    
+    if text == "Далее":
+        # Завершаем редактирование элементов
+        await update.message.reply_text(f"✅ Элементы шкафа обновлены!")
+        return await show_edit_menu(update, context)
+    
+    element_map = {
+        "Крыша": "roof",
+        "Правая стена": "right_wall",
+        "Левая стена": "left_wall",
+        "Задняя стенка": "back_wall",
+        "Дно": "floor"
+    }
+    
+    if text in element_map:
+        if element_map[text] not in context.user_data['elements']:
+            context.user_data['elements'].append(element_map[text])
+            message = f"Добавлено: {text}"
+        else:
+            message = f"Элемент '{text}' уже добавлен"
+    else:
+        message = "Выберите элемент из списка ниже."
+    
+    keyboard = [
+        ["Крыша", "Правая стена", "Левая стена"],
+        ["Задняя стенка", "Дно", "Далее"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+    await update.message.reply_text(
+        f"{message}",
+        reply_markup=reply_markup
+    )
+    
+    return EDIT_FIELD
 
 async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == "Начать новый расчёт":
-        # Создаем новую сессию, имитируя команду /start
         return await start(update, context)
     else:
         await update.message.reply_text("Пожалуйста, используйте кнопку для нового расчёта.")
@@ -992,13 +1165,15 @@ def main():
             FLOOR_COVERING: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_floor_covering)],
             COLOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_color)],
             SHELF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_material)],
-            OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_options)],
-            OPTION_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_option_count)],
+            OPTIONS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_options),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_option_count)
+            ],
             EDIT_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_choice)],
-            EDIT_MODE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_mode),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_yes_no_response),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_simple_field)
+            EDIT_FIELD: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_field),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edited_value),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edited_elements)
             ],
             RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, restart_calculation)],
         },
