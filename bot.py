@@ -10,6 +10,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Координаты офиса
+OFFICE_COORDS = "59.973050,30.445787"
+OFFICE_ADDRESS = "Санкт-Петербург, ул. Комсомола, 2к1"
+
 # Состояния диалога
 (
     ADDRESS, DISTANCE_KAD, WIDTH, HEIGHT, ELEMENTS, RS_COUNT, RS_DETAILS,
@@ -97,6 +101,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['address'] = update.message.text
+    
+    # Создаем ссылку на Яндекс.Карты
+    # Формат: https://yandex.ru/maps/?rtext=координаты_офиса~адрес_монтажа&rtt=mt
+    yandex_maps_url = f"https://yandex.ru/maps/?rtext={OFFICE_COORDS}~{update.message.text}&rtt=mt"
+    
+    await update.message.reply_text(
+        f"📍 Адрес монтажа сохранен: {update.message.text}\n\n"
+        f"🚗 [Построить маршрут от офиса до адреса монтажа]({yandex_maps_url})",
+        parse_mode='Markdown'
+    )
     await update.message.reply_text("Введите расстояние от КАД в километрах:")
     return DISTANCE_KAD
 
@@ -645,6 +659,13 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Используем жирный шрифт и эмодзи для итоговой суммы
     result_text = "📋 Результаты расчёта:\n\n" + "\n".join(results) + f"\n\n💰 *ИТОГО: {total:.0f} ₽*"
     await update.message.reply_text(result_text, reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown')
+    
+    # Добавляем ссылку на маршрут в конце результатов
+    yandex_maps_url = f"https://yandex.ru/maps/?rtext={OFFICE_COORDS}~{data.get('address', '')}&rtt=mt"
+    await update.message.reply_text(
+        f"🚗 [Построить маршрут от офиса до адреса монтажа]({yandex_maps_url})",
+        parse_mode='Markdown'
+    )
     
     keyboard = [["Начать новый расчёт"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
