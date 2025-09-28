@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 PRICE_LIST = {
     'Выход': 2000,
     'Доставка 1 заказ': 2000,
-    'Вторая Р/С шире 2х метров': 1000,
     'Второй монтажник': 2000,
     'Боковая стенка. м/п': 364,
     'Крыша. м/п': 280,
@@ -74,6 +73,9 @@ OPTIONS_LIST = [
     "Фото заказчика",
     "Видеоотзыв"
 ]
+
+# Опции, которые не требуют количества (только да/нет)
+BOOLEAN_OPTIONS = ["Фото заказчика", "Видеоотзыв"]
 
 # Соответствие опций и их цен в прайсе
 OPTION_PRICE_KEYS = {
@@ -445,8 +447,10 @@ async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE)
     keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
     await update.message.reply_text(
-        "Выберите дополнительные опции (по одной):\n"
-        "После выбора опции введите её количество, затем выберите следующую опцию или завершите выбор.",
+        "Выберите дополнительные опции:\n"
+        "• Для опций с количеством (Вент. решетка, LED светильник, Электропривод, Стойки для колес) - введите количество\n"
+        "• Для опций без количества (Фото заказчика, Видеоотзыв) - просто выберите их\n\n"
+        "Выберите опции по одной:",
         reply_markup=reply_markup
     )
     context.user_data['selected_options'] = {}
@@ -459,9 +463,22 @@ async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     
     if text in OPTIONS_LIST:
-        context.user_data['current_option'] = text
-        await update.message.reply_text(f"🔢 Введите количество '{text}':")
-        return OPTION_COUNT
+        if text in BOOLEAN_OPTIONS:
+            # Для булевых опций просто добавляем как 1
+            context.user_data['selected_options'][text] = 1
+            # Показываем клавиатуру снова
+            keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+            await update.message.reply_text(
+                f"✅ Добавлено: {text}\n\nВыберите следующую опцию или завершите выбор:",
+                reply_markup=reply_markup
+            )
+            return OPTIONS
+        else:
+            # Для опций с количеством запрашиваем количество
+            context.user_data['current_option'] = text
+            await update.message.reply_text(f"🔢 Введите количество '{text}':")
+            return OPTION_COUNT
     else:
         await update.message.reply_text("❌ Выберите опцию из списка.")
         return OPTIONS
@@ -490,6 +507,9 @@ async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == "Начать новый расчёт":
+        # Очищаем user_data для нового расчёта
+        context.user_data.clear()
+        # Автоматически запускаем новую сессию
         return await start(update, context)
     else:
         await update.message.reply_text("Пожалуйста, используйте кнопку для нового расчёта.")
@@ -584,7 +604,10 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for opt, count in selected_opts.items():
         price_key = OPTION_PRICE_KEYS[opt]
         cost = count * PRICE_LIST[price_key]
-        results.append(f"{opt} ({count} шт): {cost} ₽")
+        if opt in BOOLEAN_OPTIONS:
+            results.append(f"{opt}: {cost} ₽")
+        else:
+            results.append(f"{opt} ({count} шт): {cost} ₽")
         total += cost
     
     if data.get('second_installer'):
