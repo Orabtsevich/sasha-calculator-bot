@@ -18,12 +18,10 @@ OFFICE_ADDRESS = "Санкт-Петербург, ул. Комсомола, 2к1"
 # Состояния диалога
 (
     ADDRESS, DISTANCE_KAD, WIDTH, HEIGHT, ELEMENTS, RS_COUNT, RS_WIDER_THAN_2M, 
-    RS_TYPE, SHELVES, SHELF_SIZES_CHOICE, CUSTOM_SHELF_SIZES, ROD, FALSE_PANEL, 
-    METAL_CUTTING, SHELF_TYPE, SGR_TIERS, SGR_ADJUSTMENT, BUMPER_INSTALLATION, 
-    BUMPER_TRANSFER, SECOND_INSTALLER, WALL_MATERIAL, ROOF_MATERIAL, RS_PROFILE, 
-    FLOOR_COVERING, COLOR, SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART,
-    SHOW_SUMMARY
-) = range(30)
+    RS_TYPE, SHELVES, SHELF_SIZES_CHOICE, CUSTOM_SHELF_SIZES, SHELF_TYPE,
+    WALL_MATERIAL, ROOF_MATERIAL, RS_PROFILE, FLOOR_COVERING, COLOR, SHELF_MATERIAL,
+    ALL_OPTIONS, OPTION_COUNT, RESTART, SHOW_SUMMARY
+) = range(22)
 
 # Прайс-лист
 PRICE_LIST = {
@@ -71,9 +69,16 @@ MATERIALS = {
     'shelf': ["Металл", "Плита OSB 22 мм", "СГР", "Навесной"]
 }
 
-OPTIONS_LIST = [
+# Все опции в одном списке
+ALL_OPTIONS_LIST = [
+    "Штанга",
+    "Фальш-панель", 
+    "Резка металл/ламелей",
+    "Установка отбойников",
+    "Перенос отбойников", 
+    "Второй монтажник",
     "Вент. решетка",
-    "LED светильник", 
+    "LED светильник",
     "Электропривод",
     "Стойки для колес",
     "Фото заказчика",
@@ -81,10 +86,16 @@ OPTIONS_LIST = [
 ]
 
 # Опции, которые не требуют количества (только да/нет)
-BOOLEAN_OPTIONS = ["Фото заказчика", "Видеоотзыв"]
+BOOLEAN_OPTIONS = ["Фото заказчика", "Видеоотзыв", "Второй монтажник", "Установка отбойников", "Перенос отбойников"]
 
 # Соответствие опций и их цен в прайсе
 OPTION_PRICE_KEYS = {
+    "Штанга": "Штанга. шт",
+    "Фальш-панель": "Фальш-панель. шт",
+    "Резка металл/ламелей": "Резка металл, ламелей. шт",
+    "Установка отбойников": "Отбойники (монтаж новых). комплек",
+    "Перенос отбойников": "Отбойники (перенос). комплек",
+    "Второй монтажник": "Второй монтажник",
     "Вент. решетка": "Вент решетки (стенки) шт",
     "LED светильник": "LED светильник. шт",
     "Электропривод": "Электропривод (подключение) шт",
@@ -279,8 +290,11 @@ async def get_shelves(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return SHELF_SIZES_CHOICE
         else:
             context.user_data['custom_shelf_sizes'] = False
-            await update.message.reply_text("Введите количество штанг:")
-            return ROD
+            # Переходим сразу к выбору типа стеллажа
+            keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+            await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
+            return SHELF_TYPE
     except ValueError:
         await update.message.reply_text("Пожалуйста, введите корректное число:")
         return SHELVES
@@ -295,8 +309,10 @@ async def shelf_sizes_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return CUSTOM_SHELF_SIZES
     else:
         context.user_data['custom_shelf_sizes'] = False
-        await update.message.reply_text("Введите количество штанг:")
-        return ROD
+        keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
+        return SHELF_TYPE
 
 async def custom_shelf_sizes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -313,50 +329,13 @@ async def custom_shelf_sizes(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text(f"Введите ширину полки {current + 1}:")
             return CUSTOM_SHELF_SIZES
         else:
-            await update.message.reply_text("Введите количество штанг:")
-            return ROD
+            keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+            await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
+            return SHELF_TYPE
     except ValueError:
         await update.message.reply_text("Пожалуйста, введите корректное число:")
         return CUSTOM_SHELF_SIZES
-
-async def get_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        count = int(update.message.text)
-        if count < 0:
-            raise ValueError
-        context.user_data['rod'] = count
-        await update.message.reply_text("Введите количество фальш-панелей:")
-        return FALSE_PANEL
-    except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
-        return ROD
-
-async def get_false_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        count = int(update.message.text)
-        if count < 0:
-            raise ValueError
-        context.user_data['false_panel'] = count
-        await update.message.reply_text("Введите количество резки металл/ламелей (шт):")
-        return METAL_CUTTING
-    except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
-        return FALSE_PANEL
-
-async def get_metal_cutting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        count = int(update.message.text)
-        if count < 0:
-            raise ValueError
-        context.user_data['metal_cutting'] = count
-        
-        keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-        await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
-        return SHELF_TYPE
-    except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
-        return METAL_CUTTING
 
 async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text
@@ -367,81 +346,7 @@ async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         context.user_data['shelf_type'] = 'sgr'
     
-    if context.user_data['shelf_type'] == 'sgr' and context.user_data.get('shelves', 0) > 0:
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
-        await update.message.reply_text("Установка ярусов?", reply_markup=reply_markup)
-        return SGR_TIERS
-    else:
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
-        await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
-        return BUMPER_INSTALLATION
-
-async def get_sgr_tiers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text == "Да":
-        context.user_data['sgr_tiers'] = True
-        await update.message.reply_text("Введите количество ярусов:")
-        return SGR_ADJUSTMENT
-    else:
-        context.user_data['sgr_tiers'] = False
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
-        await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
-        return BUMPER_INSTALLATION
-
-async def get_sgr_adjustment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        count = int(update.message.text)
-        context.user_data['sgr_tiers_count'] = count
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
-        await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
-        return BUMPER_INSTALLATION
-    except ValueError:
-        await update.message.reply_text("Пожалуйста, введите число:")
-        return SGR_ADJUSTMENT
-
-async def get_bumper_installation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text == "Да":
-        context.user_data['bumper_installation'] = True
-        await update.message.reply_text("Введите количество комплектов отбойников:")
-        return BUMPER_TRANSFER
-    else:
-        context.user_data['bumper_installation'] = False
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
-        await update.message.reply_text("Перенос отбойников?", reply_markup=reply_markup)
-        return BUMPER_TRANSFER
-
-async def get_bumper_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('bumper_installation'):
-        try:
-            count = int(update.message.text)
-            context.user_data['bumper_installation_count'] = count
-        except ValueError:
-            await update.message.reply_text("Пожалуйста, введите число:")
-            return BUMPER_TRANSFER
-    
-    if update.message.text == "Да":
-        context.user_data['bumper_transfer'] = True
-        await update.message.reply_text("Введите количество комплектов переноса:")
-        return SECOND_INSTALLER
-    else:
-        context.user_data['bumper_transfer'] = False
-        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
-        await update.message.reply_text("Второй монтажник?", reply_markup=reply_markup)
-        return SECOND_INSTALLER
-
-async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('bumper_transfer'):
-        try:
-            count = int(update.message.text)
-            context.user_data['bumper_transfer_count'] = count
-        except ValueError:
-            await update.message.reply_text("Пожалуйста, введите число:")
-            return SECOND_INSTALLER
-    
-    if update.message.text == "Да":
-        context.user_data['second_installer'] = True
-    else:
-        context.user_data['second_installer'] = False
-    
+    # Переходим к выбору материалов
     keyboard = [[mat] for mat in MATERIALS['wall']]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
     await update.message.reply_text("Выберите материал для стенок:", reply_markup=reply_markup)
@@ -485,18 +390,19 @@ async def get_color(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['shelf_material'] = update.message.text
     
-    keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
+    # Теперь показываем один большой список всех опций
+    keyboard = [[opt] for opt in ALL_OPTIONS_LIST] + [["✅ Завершить выбор"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
     await update.message.reply_text(
-        "Выберите дополнительные опции:",
+        "📋 Выберите дополнительные опции (нажимайте по одной):",
         reply_markup=reply_markup
     )
     context.user_data['selected_options'] = {}
-    return OPTIONS
+    return ALL_OPTIONS
 
-async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_all_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    if text == "Завершить выбор":
+    if text == "✅ Завершить выбор":
         # Показываем сводку перед финальным расчетом
         keyboard = [["Показать результат", "Редактировать данные"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
@@ -506,26 +412,26 @@ async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return SHOW_SUMMARY
     
-    if text in OPTIONS_LIST:
+    if text in ALL_OPTIONS_LIST:
         if text in BOOLEAN_OPTIONS:
             # Для булевых опций просто добавляем как 1
             context.user_data['selected_options'][text] = 1
             # Показываем клавиатуру снова
-            keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
+            keyboard = [[opt] for opt in ALL_OPTIONS_LIST] + [["✅ Завершить выбор"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
             await update.message.reply_text(
-                f"Добавлено: {text}",
+                f"✅ Добавлено: {text}",
                 reply_markup=reply_markup
             )
-            return OPTIONS
+            return ALL_OPTIONS
         else:
             # Для опций с количеством запрашиваем количество
             context.user_data['current_option'] = text
-            await update.message.reply_text(f"Введите количество '{text}':")
+            await update.message.reply_text(f"🔢 Введите количество '{text}':")
             return OPTION_COUNT
     else:
         await update.message.reply_text("Выберите опцию из списка.")
-        return OPTIONS
+        return ALL_OPTIONS
 
 async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -537,13 +443,13 @@ async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['selected_options'][current_option] = count
         
         # Показываем клавиатуру снова для выбора следующей опции
-        keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
+        keyboard = [[opt] for opt in ALL_OPTIONS_LIST] + [["✅ Завершить выбор"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
         await update.message.reply_text(
-            f"Добавлено: {current_option} - {count} шт",
+            f"✅ Добавлено: {current_option} - {count} шт",
             reply_markup=reply_markup
         )
-        return OPTIONS
+        return ALL_OPTIONS
     except ValueError:
         await update.message.reply_text("Пожалуйста, введите корректное число:")
         return OPTION_COUNT
@@ -554,7 +460,6 @@ async def show_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await calculate_result(update, context)
         return ConversationHandler.END
     elif choice == "Редактировать данные":
-        # Простое редактирование - перезапускаем с текущими данными
         await show_edit_menu(update, context)
         return RESTART
 
@@ -588,14 +493,6 @@ async def show_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.get('shelf_type'):
         shelf_types = {'none': 'Без стеллажа', 'standard': 'Стандарт', 'sgr': 'СГР'}
         summary += f"🪜 Тип стеллажа: {shelf_types.get(data['shelf_type'], data['shelf_type'])}\n"
-    
-    # Отбойники и монтажники
-    if data.get('bumper_installation'):
-        summary += f"🛡️ Установка отбойников: {data.get('bumper_installation_count', 0)} комплектов\n"
-    if data.get('bumper_transfer'):
-        summary += f"🔄 Перенос отбойников: {data.get('bumper_transfer_count', 0)} комплектов\n"
-    if data.get('second_installer'):
-        summary += "👷 Второй монтажник: Да\n"
     
     # Материалы
     if data.get('wall_material'):
@@ -842,10 +739,6 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"{opt} ({count} шт): {cost} ₽")
         total += cost
     
-    if data.get('second_installer'):
-        total += PRICE_LIST['Второй монтажник']
-        results.append("Второй монтажник: 2000 ₽")
-    
     if data.get('height_over_2500'):
         total += PRICE_LIST['Высота шкафа 2,5-3 м']
         results.append("Высота 2,5-3 м: 500 ₽")
@@ -912,22 +805,14 @@ def main():
             SHELVES: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelves)],
             SHELF_SIZES_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, shelf_sizes_choice)],
             CUSTOM_SHELF_SIZES: [MessageHandler(filters.TEXT & ~filters.COMMAND, custom_shelf_sizes)],
-            ROD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_rod)],
-            FALSE_PANEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_false_panel)],
-            METAL_CUTTING: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_metal_cutting)],
             SHELF_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_type)],
-            SGR_TIERS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_sgr_tiers)],
-            SGR_ADJUSTMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_sgr_adjustment)],
-            BUMPER_INSTALLATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_bumper_installation)],
-            BUMPER_TRANSFER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_bumper_transfer)],
-            SECOND_INSTALLER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_second_installer)],
             WALL_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_wall_material)],
             ROOF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_roof_material)],
             RS_PROFILE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_rs_profile)],
             FLOOR_COVERING: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_floor_covering)],
             COLOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_color)],
             SHELF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_material)],
-            OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_options)],
+            ALL_OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_all_options)],
             OPTION_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_option_count)],
             SHOW_SUMMARY: [MessageHandler(filters.TEXT & ~filters.COMMAND, show_summary)],
             RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edit_input)],
