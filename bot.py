@@ -22,8 +22,8 @@ OFFICE_ADDRESS = "Санкт-Петербург, ул. Комсомола, 2к1"
     ROD, FALSE_PANEL, METAL_CUTTING, RS_TYPE, SHELF_TYPE, SGR_TIERS, 
     SGR_ADJUSTMENT, BUMPER_INSTALLATION, BUMPER_TRANSFER, SECOND_INSTALLER, 
     WALL_MATERIAL, ROOF_MATERIAL, RS_PROFILE, FLOOR_COVERING, COLOR, 
-    SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART
-) = range(30)
+    SHELF_MATERIAL, OPTIONS, OPTION_COUNT, RESTART, EDIT_MODE, EDIT_CHOICE
+) = range(32)
 
 # Прайс-лист
 PRICE_LIST = {
@@ -95,6 +95,37 @@ OPTION_PRICE_KEYS = {
 
 # Клавиатура для да/нет
 YES_NO_KEYBOARD = [["Да", "Нет"]]
+
+# Словарь для отображения названий полей
+FIELD_NAMES = {
+    'address': 'Адрес монтажа',
+    'distance_kad': 'Расстояние от КАД (км)',
+    'width': 'Ширина шкафа (мм)',
+    'height': 'Высота шкафа (мм)',
+    'elements': 'Элементы шкафа',
+    'rs_count': 'Количество рольставен',
+    'rs_wider_than_2m': 'Вторая Р/С шире 2м',
+    'shelves': 'Количество полок',
+    'rod': 'Количество штанг',
+    'false_panel': 'Количество фальш-панелей',
+    'metal_cutting': 'Резка металл/ламелей (шт)',
+    'rs_type': 'Тип рольставней',
+    'shelf_type': 'Тип стеллажа',
+    'sgr_tiers': 'Установка ярусов',
+    'sgr_tiers_count': 'Количество ярусов',
+    'bumper_installation': 'Установка отбойников',
+    'bumper_installation_count': 'Количество комплектов отбойников',
+    'bumper_transfer': 'Перенос отбойников',
+    'bumper_transfer_count': 'Количество комплектов переноса',
+    'second_installer': 'Второй монтажник',
+    'wall_material': 'Материал стенок',
+    'roof_material': 'Материал крыши',
+    'rs_profile': 'Профиль Р/С',
+    'floor_covering': 'Покрытие дна',
+    'color': 'Цвет',
+    'shelf_material': 'Материал полок',
+    'selected_options': 'Дополнительные опции'
+}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -497,8 +528,14 @@ async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def get_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "Завершить выбор":
-        await calculate_result(update, context)
-        return ConversationHandler.END
+        # Добавляем кнопку редактирования перед финальным расчетом
+        keyboard = [["Показать результат", "Редактировать данные"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text(
+            "Все данные собраны! Что хотите сделать?",
+            reply_markup=reply_markup
+        )
+        return EDIT_CHOICE
     
     if text in OPTIONS_LIST:
         if text in BOOLEAN_OPTIONS:
@@ -541,6 +578,221 @@ async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("Пожалуйста, введите корректное число:")
         return OPTION_COUNT
+
+async def edit_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text
+    if choice == "Показать результат":
+        await calculate_result(update, context)
+        return ConversationHandler.END
+    elif choice == "Редактировать данные":
+        return await show_edit_menu(update, context)
+
+async def show_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает меню редактирования с текущими значениями"""
+    data = context.user_data
+    edit_options = []
+    
+    # Формируем список полей для редактирования
+    fields_to_show = [
+        'address', 'distance_kad', 'width', 'height', 'elements', 'rs_count',
+        'rs_wider_than_2m', 'shelves', 'rod', 'false_panel', 'metal_cutting',
+        'rs_type', 'shelf_type', 'sgr_tiers', 'bumper_installation', 
+        'bumper_transfer', 'second_installer', 'wall_material', 'roof_material',
+        'rs_profile', 'floor_covering', 'color', 'shelf_material', 'selected_options'
+    ]
+    
+    for field in fields_to_show:
+        if field in data:
+            # Форматируем значение для отображения
+            if field == 'elements':
+                elements_map = {
+                    'roof': 'Крыша',
+                    'right_wall': 'Правая стена', 
+                    'left_wall': 'Левая стена',
+                    'back_wall': 'Задняя стенка',
+                    'floor': 'Дно'
+                }
+                value = ', '.join([elements_map.get(e, e) for e in data[field]])
+            elif field == 'selected_options':
+                if data[field]:
+                    value = ', '.join([f"{opt} ({count})" if count > 1 else opt 
+                                     for opt, count in data[field].items()])
+                else:
+                    value = "Нет"
+            elif isinstance(data[field], bool):
+                value = "Да" if data[field] else "Нет"
+            else:
+                value = str(data[field])
+            
+            display_name = FIELD_NAMES.get(field, field)
+            edit_options.append([f"{display_name}: {value}"])
+    
+    edit_options.append(["↩️ Вернуться к результатам"])
+    
+    reply_markup = ReplyKeyboardMarkup(edit_options, one_time_keyboard=False)
+    await update.message.reply_text(
+        "Выберите поле для редактирования (нажмите на строку с текущим значением):",
+        reply_markup=reply_markup
+    )
+    return EDIT_MODE
+
+async def edit_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    
+    if text == "↩️ Вернуться к результатам":
+        # Возвращаемся к выбору показать результат или редактировать
+        keyboard = [["Показать результат", "Редактировать данные"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text(
+            "Что хотите сделать?",
+            reply_markup=reply_markup
+        )
+        return EDIT_CHOICE
+    
+    # Найдем какое поле выбрано для редактирования
+    for field, display_name in FIELD_NAMES.items():
+        if text.startswith(f"{display_name}:"):
+            context.user_data['editing_field'] = field
+            # Определим, какой обработчик использовать для этого поля
+            return await handle_field_edit(update, context, field)
+    
+    await update.message.reply_text("Пожалуйста, выберите поле из списка для редактирования.")
+    return EDIT_MODE
+
+async def handle_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, field):
+    """Определяет, какой обработчик использовать для редактирования конкретного поля"""
+    
+    # Словарь соответствия полей и их обработчиков
+    field_handlers = {
+        'address': get_address,
+        'distance_kad': get_distance_kad,
+        'width': get_width,
+        'height': get_height,
+        'rs_count': get_rs_count,
+        'rod': lambda u, c: _edit_simple_number(u, c, 'rod', "Введите количество штанг:"),
+        'false_panel': lambda u, c: _edit_simple_number(u, c, 'false_panel', "Введите количество фальш-панелей:"),
+        'metal_cutting': lambda u, c: _edit_simple_number(u, c, 'metal_cutting', "Введите количество резки металл/ламелей (шт):"),
+        'wall_material': lambda u, c: _edit_choice_field(u, c, 'wall_material', MATERIALS['wall'], "Выберите материал для стенок:"),
+        'roof_material': lambda u, c: _edit_choice_field(u, c, 'roof_material', MATERIALS['roof'], "Выберите материал для крыши:"),
+        'rs_profile': lambda u, c: _edit_choice_field(u, c, 'rs_profile', MATERIALS['rs_profile'], "Выберите профиль Р/С:"),
+        'floor_covering': lambda u, c: _edit_choice_field(u, c, 'floor_covering', MATERIALS['floor'], "Выберите покрытие дна:"),
+        'color': lambda u, c: _edit_choice_field(u, c, 'color', MATERIALS['color'], "Выберите цвет:"),
+        'shelf_material': lambda u, c: _edit_choice_field(u, c, 'shelf_material', MATERIALS['shelf'], "Выберите материал полок:"),
+    }
+    
+    # Специальные поля с да/нет
+    yes_no_fields = ['rs_wider_than_2m', 'sgr_tiers', 'bumper_installation', 'bumper_transfer', 'second_installer']
+    
+    if field in yes_no_fields:
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        field_names = {
+            'rs_wider_than_2m': 'Вторая рольставня шире 2 метров?',
+            'sgr_tiers': 'Установка ярусов?',
+            'bumper_installation': 'Установка отбойников?',
+            'bumper_transfer': 'Перенос отбойников?',
+            'second_installer': 'Второй монтажник?'
+        }
+        await update.message.reply_text(field_names[field], reply_markup=reply_markup)
+        context.user_data['editing_yes_no_field'] = field
+        return EDIT_MODE
+    
+    # Поля, требующие специальной обработки
+    if field == 'elements':
+        keyboard = [
+            ["Крыша", "Правая стена", "Левая стена"],
+            ["Задняя стенка", "Дно", "Далее"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+        await update.message.reply_text(
+            "Выберите элементы шкафа (нажимая по одному).\n"
+            "Текущие элементы будут заменены новыми выборами:",
+            reply_markup=reply_markup
+        )
+        context.user_data['elements'] = []  # Очищаем текущие элементы
+        return ELEMENTS
+    
+    if field == 'rs_type':
+        keyboard = [["До 6 м² (300 ₽/шт)"], ["Более 6 м² (500 ₽/шт)"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text("Выберите тип рольставней:", reply_markup=reply_markup)
+        return RS_TYPE
+    
+    if field == 'shelf_type':
+        keyboard = [["Без стеллажа"], ["Стандарт (неразборный)"], ["СГР (разборный)"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text("Выберите тип стеллажа:", reply_markup=reply_markup)
+        return SHELF_TYPE
+    
+    if field == 'selected_options':
+        keyboard = [[opt] for opt in OPTIONS_LIST] + [["Завершить выбор"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
+        await update.message.reply_text(
+            "Выберите дополнительные опции (предыдущие опции будут заменены):",
+            reply_markup=reply_markup
+        )
+        context.user_data['selected_options'] = {}
+        return OPTIONS
+    
+    # Используем стандартный обработчик для остальных полей
+    if field in field_handlers:
+        return await field_handlers[field](update, context)
+    else:
+        # Для полей, не требующих специальной обработки, просто запрашиваем новое значение
+        prompts = {
+            'sgr_tiers_count': "Введите количество ярусов:",
+            'bumper_installation_count': "Введите количество комплектов отбойников:",
+            'bumper_transfer_count': "Введите количество комплектов переноса:"
+        }
+        prompt = prompts.get(field, f"Введите новое значение для {FIELD_NAMES.get(field, field)}:")
+        await update.message.reply_text(prompt)
+        context.user_data['editing_simple_field'] = field
+        return EDIT_MODE
+
+async def _edit_simple_number(update: Update, context: ContextTypes.DEFAULT_TYPE, field_name, prompt):
+    """Вспомогательная функция для редактирования числовых полей"""
+    try:
+        value = int(update.message.text)
+        if value < 0:
+            raise ValueError
+        context.user_data[field_name] = value
+        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field_name, field_name)} обновлено!")
+        return await show_edit_menu(update, context)
+    except ValueError:
+        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        return EDIT_MODE
+
+async def _edit_choice_field(update: Update, context: ContextTypes.DEFAULT_TYPE, field_name, choices, prompt):
+    """Вспомогательная функция для редактирования полей с выбором из списка"""
+    if update.message.text in choices:
+        context.user_data[field_name] = update.message.text
+        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field_name, field_name)} обновлено!")
+        return await show_edit_menu(update, context)
+    else:
+        keyboard = [[choice] for choice in choices]
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text(prompt, reply_markup=reply_markup)
+        return EDIT_MODE
+
+# Обработчики для редактирования да/нет полей
+async def edit_yes_no_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    field = context.user_data.get('editing_yes_no_field')
+    if field:
+        if update.message.text == "Да":
+            context.user_data[field] = True
+        else:
+            context.user_data[field] = False
+        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
+        return await show_edit_menu(update, context)
+    return EDIT_MODE
+
+# Обработчик для простых текстовых полей
+async def edit_simple_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    field = context.user_data.get('editing_simple_field')
+    if field:
+        context.user_data[field] = update.message.text
+        await update.message.reply_text(f"✅ {FIELD_NAMES.get(field, field)} обновлено!")
+        return await show_edit_menu(update, context)
+    return EDIT_MODE
 
 async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == "Начать новый расчёт":
@@ -742,6 +994,12 @@ def main():
             SHELF_MATERIAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_shelf_material)],
             OPTIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_options)],
             OPTION_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_option_count)],
+            EDIT_CHOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_choice)],
+            EDIT_MODE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_mode),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_yes_no_response),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_simple_field)
+            ],
             RESTART: [MessageHandler(filters.TEXT & ~filters.COMMAND, restart_calculation)],
         },
         fallbacks=[CommandHandler('cancel', cancel)]
