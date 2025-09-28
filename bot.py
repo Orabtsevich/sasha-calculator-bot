@@ -1,5 +1,6 @@
 import os
 import logging
+import urllib.parse
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
 
@@ -92,6 +93,9 @@ OPTION_PRICE_KEYS = {
     "Видеоотзыв": "Видеоотзыв"
 }
 
+# Клавиатура для да/нет
+YES_NO_KEYBOARD = [["Да", "Нет"]]
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Привет! Я калькулятор зарплаты мастера Саши.\n\n"
@@ -103,14 +107,19 @@ async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['address'] = update.message.text
     
     # Создаем ссылку на Яндекс.Карты
-    # Формат: https://yandex.ru/maps/?rtext=координаты_офиса~адрес_монтажа&rtt=mt
-    yandex_maps_url = f"https://yandex.ru/maps/?rtext={OFFICE_COORDS}~{update.message.text}&rtt=mt"
+    try:
+        encoded_address = urllib.parse.quote(update.message.text)
+        yandex_maps_url = f"https://yandex.ru/maps/?rtext={OFFICE_COORDS}~{encoded_address}&rtt=mt"
+        
+        await update.message.reply_text(
+            f"📍 Адрес монтажа сохранен: {update.message.text}\n\n"
+            f"🚗 [Построить маршрут от офиса до адреса монтажа]({yandex_maps_url})",
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при создании ссылки на карты: {e}")
+        await update.message.reply_text(f"📍 Адрес монтажа сохранен: {update.message.text}")
     
-    await update.message.reply_text(
-        f"📍 Адрес монтажа сохранен: {update.message.text}\n\n"
-        f"🚗 [Построить маршрут от офиса до адреса монтажа]({yandex_maps_url})",
-        parse_mode='Markdown'
-    )
     await update.message.reply_text("Введите расстояние от КАД в километрах:")
     return DISTANCE_KAD
 
@@ -208,7 +217,8 @@ async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if count >= 2:
             # Если 2 или более рольставен, спрашиваем про вторую шире 2м
-            await update.message.reply_text("Вторая рольставня шире 2 метров? (да/нет):")
+            reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+            await update.message.reply_text("Вторая рольставня шире 2 метров?", reply_markup=reply_markup)
             return RS_WIDER_THAN_2M
         else:
             # Если только одна рольставня, переходим к выбору типа
@@ -221,7 +231,7 @@ async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return RS_COUNT
 
 async def get_rs_wider_than_2m(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text.lower() in ['да', 'yes', 'y']:
+    if update.message.text == "Да":
         context.user_data['rs_wider_than_2m'] = True
     else:
         context.user_data['rs_wider_than_2m'] = False
@@ -347,40 +357,45 @@ async def get_shelf_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['shelf_type'] = 'sgr'
     
     if context.user_data['shelf_type'] == 'sgr' and context.user_data.get('shelves', 0) > 0:
-        await update.message.reply_text("Установка ярусов? (да/нет):")
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        await update.message.reply_text("Установка ярусов?", reply_markup=reply_markup)
         return SGR_TIERS
     else:
-        await update.message.reply_text("Установка отбойников? (да/нет):")
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
         return BUMPER_INSTALLATION
 
 async def get_sgr_tiers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text.lower() in ['да', 'yes', 'y']:
+    if update.message.text == "Да":
         context.user_data['sgr_tiers'] = True
         await update.message.reply_text("Введите количество ярусов:")
         return SGR_ADJUSTMENT
     else:
         context.user_data['sgr_tiers'] = False
-        await update.message.reply_text("Установка отбойников? (да/нет):")
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
         return BUMPER_INSTALLATION
 
 async def get_sgr_adjustment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         count = int(update.message.text)
         context.user_data['sgr_tiers_count'] = count
-        await update.message.reply_text("Установка отбойников? (да/нет):")
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        await update.message.reply_text("Установка отбойников?", reply_markup=reply_markup)
         return BUMPER_INSTALLATION
     except ValueError:
         await update.message.reply_text("Пожалуйста, введите число:")
         return SGR_ADJUSTMENT
 
 async def get_bumper_installation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text.lower() in ['да', 'yes', 'y']:
+    if update.message.text == "Да":
         context.user_data['bumper_installation'] = True
         await update.message.reply_text("Введите количество комплектов отбойников:")
         return BUMPER_TRANSFER
     else:
         context.user_data['bumper_installation'] = False
-        await update.message.reply_text("Перенос отбойников? (да/нет):")
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        await update.message.reply_text("Перенос отбойников?", reply_markup=reply_markup)
         return BUMPER_TRANSFER
 
 async def get_bumper_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -392,13 +407,14 @@ async def get_bumper_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("Пожалуйста, введите число:")
             return BUMPER_TRANSFER
     
-    if update.message.text.lower() in ['да', 'yes', 'y']:
+    if update.message.text == "Да":
         context.user_data['bumper_transfer'] = True
         await update.message.reply_text("Введите количество комплектов переноса:")
         return SECOND_INSTALLER
     else:
         context.user_data['bumper_transfer'] = False
-        await update.message.reply_text("Второй монтажник? (да/нет):")
+        reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+        await update.message.reply_text("Второй монтажник?", reply_markup=reply_markup)
         return SECOND_INSTALLER
 
 async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -410,7 +426,7 @@ async def get_second_installer(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("Пожалуйста, введите число:")
             return SECOND_INSTALLER
     
-    if update.message.text.lower() in ['да', 'yes', 'y']:
+    if update.message.text == "Да":
         context.user_data['second_installer'] = True
     else:
         context.user_data['second_installer'] = False
@@ -661,11 +677,15 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(result_text, reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown')
     
     # Добавляем ссылку на маршрут в конце результатов
-    yandex_maps_url = f"https://yandex.ru/maps/?rtext={OFFICE_COORDS}~{data.get('address', '')}&rtt=mt"
-    await update.message.reply_text(
-        f"🚗 [Построить маршрут от офиса до адреса монтажа]({yandex_maps_url})",
-        parse_mode='Markdown'
-    )
+    try:
+        encoded_address = urllib.parse.quote(data.get('address', ''))
+        yandex_maps_url = f"https://yandex.ru/maps/?rtext={OFFICE_COORDS}~{encoded_address}&rtt=mt"
+        await update.message.reply_text(
+            f"🚗 [Построить маршрут от офиса до адреса монтажа]({yandex_maps_url})",
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при создании ссылки на карты в результатах: {e}")
     
     keyboard = [["Начать новый расчёт"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
