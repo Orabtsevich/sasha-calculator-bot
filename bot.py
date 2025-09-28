@@ -514,9 +514,7 @@ async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def restart_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == "Начать новый расчёт":
-        # Очищаем user_data для нового расчёта
-        context.user_data.clear()
-        # Автоматически запускаем новую сессию
+        # Создаем новую сессию, имитируя команду /start
         return await start(update, context)
     else:
         await update.message.reply_text("Пожалуйста, используйте кнопку для нового расчёта.")
@@ -526,6 +524,11 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
     results = []
     total = 0
+    
+    # Добавляем адрес в начало результатов
+    address = data.get('address', 'Не указан')
+    results.append(f"📍 Адрес монтажа: {address}")
+    results.append("")
     
     results.append("Выход на работу: 2000 ₽")
     total += 2000
@@ -639,8 +642,9 @@ async def calculate_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
         results.append(f"Выезд за КАД ({distance} км): {delivery_cost:.0f} ₽")
         total += delivery_cost
     
-    result_text = "📋 Результаты расчёта:\n\n" + "\n".join(results) + f"\n\n💰 ИТОГО: {total:.0f} ₽"
-    await update.message.reply_text(result_text, reply_markup=ReplyKeyboardRemove())
+    # Используем жирный шрифт и эмодзи для итоговой суммы
+    result_text = "📋 Результаты расчёта:\n\n" + "\n".join(results) + f"\n\n💰 *ИТОГО: {total:.0f} ₽*"
+    await update.message.reply_text(result_text, reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown')
     
     keyboard = [["Начать новый расчёт"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
