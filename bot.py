@@ -85,8 +85,8 @@ ALL_OPTIONS_LIST = [
     "Видеоотзыв"
 ]
 
-# Опции, которые не требуют количества (только да/нет)
-BOOLEAN_OPTIONS = ["Фото заказчика", "Видеоотзыв", "Второй монтажник", "Установка отбойников", "Перенос отбойников"]
+# Опции, которые НЕ требуют количества (только да/нет)
+BOOLEAN_OPTIONS = ["Фото заказчика", "Видеоотзыв"]
 
 # Соответствие опций и их цен в прайсе
 OPTION_PRICE_KEYS = {
@@ -103,9 +103,6 @@ OPTION_PRICE_KEYS = {
     "Фото заказчика": "Фото заказчика на фоне шкафа. шт",
     "Видеоотзыв": "Видеоотзыв"
 }
-
-# Клавиатура для да/нет
-YES_NO_KEYBOARD = [["Да", "Нет"]]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -239,7 +236,8 @@ async def get_rs_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if count >= 2:
             # Если 2 или более рольставен, спрашиваем про вторую шире 2м
-            reply_markup = ReplyKeyboardMarkup(YES_NO_KEYBOARD, one_time_keyboard=True)
+            keyboard = [["Да", "Нет"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
             await update.message.reply_text("Вторая рольставня шире 2 метров?", reply_markup=reply_markup)
             return RS_WIDER_THAN_2M
         else:
@@ -394,7 +392,7 @@ async def get_shelf_material(update: Update, context: ContextTypes.DEFAULT_TYPE)
     keyboard = [[opt] for opt in ALL_OPTIONS_LIST] + [["✅ Завершить выбор"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
     await update.message.reply_text(
-        "📋 Выберите дополнительные опции (нажимайте по одной):",
+        "📋 Выберите дополнительные опции и введите их количество:",
         reply_markup=reply_markup
     )
     context.user_data['selected_options'] = {}
@@ -420,12 +418,12 @@ async def get_all_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[opt] for opt in ALL_OPTIONS_LIST] + [["✅ Завершить выбор"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False)
             await update.message.reply_text(
-                f"✅ Добавлено: {text}",
+                f"✅ Добавлено: {text} (1 шт)",
                 reply_markup=reply_markup
             )
             return ALL_OPTIONS
         else:
-            # Для опций с количеством запрашиваем количество
+            # Для ВСЕХ остальных опций запрашиваем количество
             context.user_data['current_option'] = text
             await update.message.reply_text(f"🔢 Введите количество '{text}':")
             return OPTION_COUNT
@@ -451,7 +449,7 @@ async def get_option_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ALL_OPTIONS
     except ValueError:
-        await update.message.reply_text("Пожалуйста, введите корректное число:")
+        await update.message.reply_text("Пожалуйста, введите корректное число (только цифры):")
         return OPTION_COUNT
 
 async def show_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -519,7 +517,7 @@ async def show_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     summary += "Примеры:\n"
     summary += "ширина = 2500\n"
     summary += "адрес = Новый адрес\n"
-    summary += "второй монтажник = нет\n\n"
+    summary += "второй монтажник = 2\n\n"
     summary += "Или введите 'готово' для показа результата."
     
     await update.message.reply_text(summary)
@@ -538,18 +536,6 @@ async def handle_edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             field_part, value_part = text.split("=", 1)
             field = field_part.strip()
             value = value_part.strip()
-            
-            # Сопоставление полей
-            field_mapping = {
-                'адрес': 'address',
-                'расстояние': 'distance_kad', 'расстояние от кад': 'distance_kad',
-                'ширина': 'width', 'ширина шкафа': 'width',
-                'высота': 'height', 'высота шкафа': 'height',
-                'вторая р/с шире 2м': 'rs_wider_than_2m', 'вторая рольставня': 'rs_wider_than_2m',
-                'второй монтажник': 'second_installer',
-                'установка отбойников': 'bumper_installation',
-                'перенос отбойников': 'bumper_transfer'
-            }
             
             # Числовые поля
             if field in ['расстояние', 'расстояние от кад']:
@@ -575,20 +561,22 @@ async def handle_edit_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif field == 'адрес':
                 context.user_data['address'] = value
                 await update.message.reply_text("✅ Адрес обновлен!")
-            elif field in ['вторая р/с шире 2м', 'вторая рольставня']:
-                context.user_data['rs_wider_than_2m'] = value.lower() in ['да', 'yes', '1', 'true']
-                await update.message.reply_text("✅ Вторая Р/С обновлена!")
-            elif field == 'второй монтажник':
-                context.user_data['second_installer'] = value.lower() in ['да', 'yes', '1', 'true']
-                await update.message.reply_text("✅ Второй монтажник обновлен!")
-            elif field == 'установка отбойников':
-                context.user_data['bumper_installation'] = value.lower() in ['да', 'yes', '1', 'true']
-                await update.message.reply_text("✅ Установка отбойников обновлена!")
-            elif field == 'перенос отбойников':
-                context.user_data['bumper_transfer'] = value.lower() in ['да', 'yes', '1', 'true']
-                await update.message.reply_text("✅ Перенос отбойников обновлен!")
             else:
-                await update.message.reply_text("Неизвестное поле. Используйте: адрес, расстояние, ширина, высота, вторая р/с шире 2м, второй монтажник, установка отбойников, перенос отбойников")
+                # Попробуем найти опцию для редактирования
+                for opt in ALL_OPTIONS_LIST:
+                    if field.lower() in opt.lower():
+                        try:
+                            count = int(value)
+                            context.user_data['selected_options'][opt] = count
+                            await update.message.reply_text(f"✅ {opt} обновлено на {count} шт!")
+                            await show_edit_menu(update, context)
+                            return RESTART
+                        except ValueError:
+                            await update.message.reply_text("Введите число для количества.")
+                            await show_edit_menu(update, context)
+                            return RESTART
+                
+                await update.message.reply_text("Неизвестное поле. Используйте: адрес, расстояние, ширина, высота, или название опции.")
             
             # Показываем обновленное меню
             await show_edit_menu(update, context)
